@@ -1,0 +1,3519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>白虎宗修仙</title>
+    <link rel="stylesheet" href="css/xiuxian-style.css">
+    <link rel="stylesheet" href="css/bhz-style.css">
+    <!-- 白虎宗专用数据隔离脚本 - 必须在其他脚本之前加载 -->
+    <script>
+        // 为白虎宗游戏创建独立的数据命名空间
+        (function() {
+            const BHZ_PREFIX = 'bhz_';
+            const BHZ_DB_NAME = 'bhz_xiuxian_dlc_db';
+            const BHZ_VECTOR_DB_NAME = 'bhz_VectorDB';
+            
+            // 包装localStorage，自动添加bhz_前缀
+            const originalLocalStorage = {
+                getItem: localStorage.getItem.bind(localStorage),
+                setItem: localStorage.setItem.bind(localStorage),
+                removeItem: localStorage.removeItem.bind(localStorage),
+                clear: localStorage.clear.bind(localStorage)
+            };
+            
+            // 重写localStorage方法
+            Storage.prototype.getItem = function(key) {
+                return originalLocalStorage.getItem(BHZ_PREFIX + key);
+            };
+            
+            Storage.prototype.setItem = function(key, value) {
+                return originalLocalStorage.setItem(BHZ_PREFIX + key, value);
+            };
+            
+            Storage.prototype.removeItem = function(key) {
+                return originalLocalStorage.removeItem(BHZ_PREFIX + key);
+            };
+            
+            // clear方法只清除bhz_前缀的数据
+            Storage.prototype.clear = function() {
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith(BHZ_PREFIX)) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach(key => originalLocalStorage.removeItem(key));
+            };
+            
+            // 保存配置供DLCManager使用
+            window.BHZ_CONFIG = {
+                DB_NAME: BHZ_DB_NAME,
+                VECTOR_DB_NAME: BHZ_VECTOR_DB_NAME,
+                DLC_FILE: '白虎宗巨瑟修仙（拜师版）.json'
+            };
+            
+            console.log('[白虎宗] 数据隔离已启用 - localStorage前缀:', BHZ_PREFIX);
+            console.log('[白虎宗] DLC数据库名:', BHZ_DB_NAME);
+        })();
+    </script>
+</head>
+
+<body>
+    <!-- 移动端Tab切换 -->
+    <div class="mobile-tabs">
+        <div class="tab-buttons">
+            <button class="tab-btn active" data-tab="game" onclick="switchMobileTab('game')">
+                🎮 游戏
+            </button>
+            <button class="tab-btn" data-tab="status" onclick="switchMobileTab('status')">
+                📊 状态
+            </button>
+        </div>
+    </div>
+    <!-- 配置弹窗通过JS生成 -->
+    <script src="./js/config-modal.js"></script>
+    <script>
+        // 页面加载完成后加载配置弹窗
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                loadConfigModal();
+                // 初始化人物图谱
+                setTimeout(initCharacterGraphSystem, 1500);
+            });
+        } else {
+            loadConfigModal();
+            // 初始化人物图谱
+            setTimeout(initCharacterGraphSystem, 1500);
+        }
+        
+        // 初始化人物图谱系统
+        async function initCharacterGraphSystem() {
+            try {
+                console.log('[人物图谱] 开始初始化系统...');
+                
+                // 🔧 等待所有模块加载完成
+                let retryCount = 0;
+                const maxRetries = 30; // 3秒，每100ms检查一次
+                
+                while ((!window.characterGraphManager || !window.characterGraphIntegration || !window.initializeCharacterGraphHooks) && retryCount < maxRetries) {
+                    console.log(`[人物图谱] ⏳ 等待所有模块加载... (${retryCount + 1}/${maxRetries})`);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retryCount++;
+                }
+                
+                // 检查模块是否都可用
+                if (!window.characterGraphManager) {
+                    console.error('[人物图谱] ❌ CharacterGraphManager 未找到');
+                    return;
+                }
+                if (!window.characterGraphIntegration) {
+                    console.error('[人物图谱] ❌ CharacterGraphIntegration 未找到');
+                    return;
+                }
+                if (!window.initializeCharacterGraphHooks) {
+                    console.error('[人物图谱] ❌ CharacterGraphHooks 未找到');
+                    return;
+                }
+                
+                // 按顺序初始化
+                console.log('[人物图谱] 🔄 初始化管理器...');
+                await window.characterGraphManager.init();
+                console.log('✅ 人物图谱管理器初始化完成');
+                
+                console.log('[人物图谱] 🔄 初始化集成...');
+                await window.characterGraphIntegration.init();
+                console.log('✅ 人物图谱集成初始化完成');
+                
+                console.log('[人物图谱] 🔄 初始化钩子...');
+                window.initializeCharacterGraphHooks();
+                console.log('✅ 人物图谱钩子初始化完成');
+                
+                console.log('[人物图谱] ✅ 系统初始化成功');
+            } catch (error) {
+                console.error('[人物图谱] ❌ 初始化失败:', error);
+            }
+        }
+        
+        // 全局函数：切换移动端tab
+        function switchMobileTab(tabName) {
+            console.log('[移动端Tab] 切换到:', tabName);
+            
+            // 移除所有active类
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector('.game-panel').classList.remove('active');
+            document.querySelector('.status-panel').classList.remove('active');
+
+            // 添加对应的active类
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+            if (tabName === 'game') {
+                document.querySelector('.game-panel').classList.add('active');
+            } else if (tabName === 'status') {
+                document.querySelector('.status-panel').classList.add('active');
+            }
+        }
+    </script>
+
+    <div class="container">
+        <!-- 中间游戏面板 -->
+        <div class="panel game-panel active">
+            <div style="display: flex; justify-content: space-between; align-items: center;padding:10px;box-sizing: border-box;">
+                <h2>白虎宗修仙</h2>
+                <button class="config-toggle-btn" onclick="openConfigModal()">⚙️ 设置</button>
+            </div>
+            <div id="gameHistory"></div>
+            <div id="debugOutput" style="display:none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; white-space: pre-wrap; background:#0b1220; color:#e6edf3; border-radius:8px; padding:12px; margin-top:10px; max-height: 50vh; overflow:auto; border:1px solid #1f2a44;"></div>
+            <div class="controls" style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn btn-primary" id="startGame" onclick="startGame()"
+                    style="display: none;">开始游戏</button>
+                <div style="display: flex; gap: 10px;" class="mobile-input-container">
+                    <button class="btn btn-delete-mode" id="deleteToggleBtn" onclick="toggleDeleteMode()"
+                        style="padding: 10px 20px;">
+                        🗑️
+                    </button>
+                    <input type="text" id="userInput" placeholder="输入你的行动..."
+                        style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    <button class="btn btn-primary" id="sendBtn" onclick="sendUserInput()"
+                        style="padding: 10px 30px;">发送</button>
+                </div>
+                <div id="deleteControls" style="display: none; gap: 10px;">
+                    <button class="btn btn-danger" onclick="confirmDelete()" style="flex: 1;">✅ 确认删除选中消息</button>
+                    <button class="btn btn-secondary" onclick="cancelDelete()" style="flex: 1;">❌ 取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧状态面板容器（由游戏配置文件动态生成） -->
+        <div id="statusPanelContainer" class="panel status-panel">
+            <!-- 状态面板HTML将由配置文件（如 bhz-config.js）动态插入 -->
+            <!-- 如果配置文件未加载，这里会显示备用内容 -->
+        </div>
+    </div>
+
+    <!-- Transformers.js - 浏览器端AI模型库（可选，仅在使用浏览器模型时需要） -->
+    <script type="module" id="transformersScript">
+        // 动态加载，避免影响页面加载速度
+        // 调试日志开关（默认关闭）。如需查看详细日志，可在控制台执行：window.DEBUG_TRANSFORMERS = true
+        window.DEBUG_TRANSFORMERS = (typeof window.DEBUG_TRANSFORMERS !== 'undefined') ? window.DEBUG_TRANSFORMERS : false;
+        // 🆕 添加全局fetch拦截器以追踪模型下载进度
+        window._setupProgressTracking = function() {
+            if (window._progressTrackingSetup) return;
+            window._progressTrackingSetup = true;
+            
+            const originalFetch = window.fetch;
+            window.fetch = async function(...args) {
+                const [url] = args;
+                
+                // 只拦截模型文件下载（.onnx, .json等）
+                const isModelFile = typeof url === 'string' && 
+                    (url.includes('onnx') || url.includes('Xenova') || url.includes('tokenizer'));
+                
+                if (!isModelFile || !window._modelLoadProgress) {
+                    return originalFetch.apply(this, args);
+                }
+                
+                console.log(`[模型下载] 开始下载: ${url.split('/').pop()}`);
+                
+                const response = await originalFetch.apply(this, args);
+                
+                if (!response.ok) {
+                    console.error(`[模型下载] 下载失败: ${response.status} ${response.statusText}`);
+                    return response;
+                }
+                
+                const reader = response.body.getReader();
+                const contentLength = +response.headers.get('Content-Length') || 0;
+                const fileName = url.split('/').pop();
+                
+                console.log(`[模型下载] ${fileName} - 大小: ${(contentLength / 1024 / 1024).toFixed(2)} MB`);
+                
+                let receivedLength = 0;
+                const chunks = [];
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    
+                    // 更新全局进度
+                    if (window._modelLoadProgress) {
+                        window._modelLoadProgress.files.set(fileName, {
+                            loaded: receivedLength,
+                            total: contentLength
+                        });
+                        
+                        // 计算总进度
+                        let totalLoaded = 0;
+                        let totalSize = 0;
+                        window._modelLoadProgress.files.forEach(file => {
+                            totalLoaded += file.loaded;
+                            totalSize += file.total;
+                        });
+                        
+                        window._modelLoadProgress.loaded = totalLoaded;
+                        window._modelLoadProgress.total = totalSize || 15000000; // 默认15MB
+                        
+                        // 更新UI
+                        window._updateProgressUI && window._updateProgressUI();
+                    }
+                }
+                
+                console.log(`[模型下载] ✅ ${fileName} 下载完成`);
+                
+                // 重新组装响应
+                const chunksAll = new Uint8Array(receivedLength);
+                let position = 0;
+                for (let chunk of chunks) {
+                    chunksAll.set(chunk, position);
+                    position += chunk.length;
+                }
+                
+                return new Response(chunksAll, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                });
+            };
+        };
+        
+        window.loadTransformersJS = async function() {
+            if (window.transformersLoaded) return;
+            
+            // 启动进度追踪
+            window._setupProgressTracking();
+            
+            console.log('[Transformers.js] 开始加载库文件...');
+            
+            try {
+                const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0');
+                
+                // 🔧 关键修复：清除默认的 /models/ 路径前缀
+                env.localModelPath = './';  // 设置为当前目录，避免路径重复
+                env.allowRemoteModels = true;  // 允许CDN回退
+                
+                window.transformers = { pipeline, env };
+                window.transformersLoaded = true;
+                console.log('[Transformers.js] ✅ 库加载成功');
+                console.log('[Transformers.js] 本地模型基础路径:', env.localModelPath);
+            } catch (error) {
+                console.error('[Transformers.js] ❌ 库加载失败:', error);
+                throw error;
+            }
+        };
+
+        function logItemOp(op) {
+            if (!gameState.localOps) gameState.localOps = { items: [], attrs: [], equip: [] };
+            gameState.localOps.items.push(Object.assign({}, op, { ts: Date.now() }));
+        }
+
+        function logAttrOp(op) {
+            if (!gameState.localOps) gameState.localOps = { items: [], attrs: [], equip: [] };
+            gameState.localOps.attrs.push(Object.assign({}, op, { ts: Date.now() }));
+        }
+
+        function logEquipOp(op) {
+            if (!gameState.localOps) gameState.localOps = { items: [], attrs: [], equip: [] };
+            gameState.localOps.equip.push(Object.assign({}, op, { ts: Date.now() }));
+        }
+    </script>
+
+    <script src="supply.js"></script>
+    <script src="matrix-manager.js"></script>
+    <!-- 🆕 测试工具（可选，用于调试） -->
+    <!-- <script src="test-history-matrix.js"></script> -->
+    <script src="game-framework.js"></script>
+    <script src="bhz-config.js"></script>
+    <!-- 战斗系统已移除 -->
+    <!-- <script src="combat-skills.js"></script>
+    <script src="combat-system-part1.js"></script>
+    <script src="combat-system-complete.js"></script> -->
+    <!-- v3.1 变量指令解析器 -->
+    <script src="js/variable-instruction-parser-v3.1.js"></script>
+    <script src="js/game-core-systems.js"></script>
+    <script src="js/api-calling-functions.js"></script>
+    <script src="js/dynamic-world-functions.js"></script>
+
+    
+    <!-- ✅ 激进重构新增模块 - 待创建完整版本 -->
+    <script src="dlc-manager.js"></script>
+    <!-- 白虎宗专用DLC配置 - 必须在dlc-manager.js之后加载 -->
+    <script src="bhz-dlc-config.js"></script>
+    <script src="js/knowledge-manager-full.js"></script>
+    <script src="js/dlc-ui-full.js"></script>
+    <script src="js/message-editor.js"></script>
+    <script src="js/message-floor-indicator.js"></script>
+    <script src="js/shared/data-isolation.js"></script>
+    <script src="js/shared/mobile-ui.js"></script>
+    <script src="js/shared/ai-response-handler.js"></script>
+    <script src="js/user-input-handler.js"></script>
+    <script src="js/ai-message-builder.js"></script>
+    <script src="js/viewer-components.js"></script>
+    <script src="js/history-matrix-modal-functions.js"></script>
+    <script src="js/json-repair-enhanced.js"></script>
+    <script src="js/game-initialization.js"></script>
+    
+    <!-- 人物图谱系统 -->
+    <script src="js/character-graph-manager.js"></script>
+    <script src="js/character-graph-integration.js"></script>
+    <script src="js/character-graph-ui.js"></script>
+    <script src="js/character-graph-hooks.js"></script>
+    
+    <script src="character-creation.js"></script>
+    
+    <script>
+        // 角色创建状态（从配置文件中获取）
+        // 注意：这个变量现在由 bhz-config.js 提供，如果未加载则使用备用数据
+        if (!window.characterCreation) {
+            window.characterCreation = {
+                difficulty: 'normal',
+                maxPoints: 100,
+                remainingPoints: 100,
+                baseAttributes: {
+                    physique: 10,      // 根骨
+                    fortune: 10,       // 气运
+                    comprehension: 10, // 悟性
+                    spirit: 10,        // 神识
+                    potential: 10,     // 潜力
+                    charisma: 10       // 魅力
+                },
+                selectedTalents: [],
+                selectedGender: 'male',
+                selectedOrigin: 'commoner',
+                usedPoints: 0
+            };
+        }
+        // 创建局部引用，方便代码使用（不使用const避免重复声明）
+        var characterCreation = window.characterCreation;
+
+        // 出身列表（从配置文件中获取，如果配置文件未加载则使用备用数据）
+        if (!window.origins) {
+            window.origins = [
+            {
+                id: 'commoner',
+                name: '凡人',
+                description: '普通的凡人，一切从零开始',
+                pointsModifier: 0,
+                attributeEffects: {}
+            },
+            {
+                id: 'slave',
+                name: '奴隶',
+                description: '卑微的奴隶出身，饱受折磨但意志坚韧',
+                pointsModifier: 20,
+                attributeEffects: { physique: -5, spirit: 3, potential: -3, charisma: -5 }
+            },
+            {
+                id: 'noble',
+                name: '官宦世家',
+                description: '出身名门望族，从小锦衣玉食',
+                pointsModifier: -30,
+                attributeEffects: { fortune: 18, charisma: 8, physique: -3, spirit: 5 }
+            },
+            {
+                id: 'martial',
+                name: '武林侠客',
+                description: '行走江湖的侠客，身手不凡',
+                pointsModifier: -15,
+                attributeEffects: { physique: 8, spirit: 10, charisma: 3 }
+            },
+            {
+                id: 'outer_disciple',
+                name: '修仙外门弟子',
+                description: '修仙门派的外门弟子，已入修仙之门',
+                pointsModifier: -20,
+                attributeEffects: { comprehension: 15, potential: 5, spirit: 3, fortune: 3 }
+            },
+            {
+                id: 'inner_disciple',
+                name: '修仙内门弟子',
+                description: '修仙门派的内门弟子，天资优异',
+                pointsModifier: -40,
+                attributeEffects: { comprehension: 18, potential: 8, spirit: 8, fortune: 5, physique: 5 }
+            },
+            {
+                id: 'rogue_cultivator',
+                name: '散修',
+                description: '独自修炼的散修，自由但艰难',
+                pointsModifier: -10,
+                attributeEffects: { comprehension: 15, fortune: -3, spirit: 5, potential: 3 }
+            },
+            {
+                id: 'poor_family',
+                name: '寒门子弟',
+                description: '出身贫寒家庭，自幼吃苦耐劳',
+                pointsModifier: 10,
+                attributeEffects: { physique: 3, spirit: 5, fortune: -5, potential: 13 }
+            },
+            {
+                id: 'cultivation_family',
+                name: '修真世家',
+                description: '修真世家后裔，家学渊源深厚',
+                pointsModifier: -35,
+                attributeEffects: { comprehension: 8, spirit: 18, fortune: 5, charisma: 5, potential: 5 }
+            },
+            {
+                id: 'sect_prodigy',
+                name: '宗门新秀',
+                description: '宗门重点培养的天才弟子',
+                pointsModifier: -35,
+                attributeEffects: { comprehension: 10, potential: 18, spirit: 5, fortune: 5 }
+            },
+            {
+                id: 'royal_noble',
+                name: '王朝贵胄',
+                description: '王朝皇室成员，身份尊贵无比',
+                pointsModifier: -45,
+                attributeEffects: { charisma: 20, fortune: 10, spirit: 5, physique: -5, comprehension: 3 }
+            },
+            {
+                id: 'spirit_farmer',
+                name: '灵田佃户',
+                description: '世代耕种灵田的佃农，熟悉灵植',
+                pointsModifier: 5,
+                attributeEffects: { physique: 5, comprehension: 8, fortune: -3, charisma: -3 }
+            },
+            {
+                id: 'demon_slave',
+                name: '魔尊性奴',
+                description: '曾为魔尊奴役，身心受创但意志不灭',
+                pointsModifier: 25,
+                attributeEffects: { physique: -8, spirit: 8, charisma: -8, potential: 5, fortune: -5 }
+            },
+            {
+                id: 'ghost_officer',
+                name: '鬼差阴吏',
+                description: '阴司鬼差，掌管生死簿录',
+                pointsModifier: -25,
+                attributeEffects: { spirit: 20, comprehension: 5, physique: -5, charisma: -3, fortune: 3 }
+            },
+            {
+                id: 'earth_student',
+                name: '地球学子',
+                description: '现实地球的学生，地球发生了灵气复苏',
+                pointsModifier: -20,
+                attributeEffects: { comprehension: 10, spirit: 5, fortune: 5, charisma: -3 }
+            },
+            {
+                id: 'demon_beast',
+                name: '妖族小妖',
+                description: '妖族出身，兽性未泯但潜力巨大',
+                pointsModifier: -15,
+                attributeEffects: { physique: 15, potential: 8, spirit: 3, charisma: -5, comprehension: -3 }
+            },
+            {
+                id: 'mine_slave',
+                name: '灵石矿奴',
+                description: '灵石矿中的苦工，常年劳作体魄强健',
+                pointsModifier: 15,
+                attributeEffects: { physique: 18, spirit: 3, fortune: -8, charisma: -5, potential: -3 }
+            },
+            {
+                id: 'sword_spirit',
+                name: '古剑剑灵',
+                description: '上古神剑的器灵，剑道天赋卓绝',
+                pointsModifier: -30,
+                attributeEffects: { spirit: 20, comprehension: 8, potential: 5, physique: -5 }
+            },
+            {
+                id: 'alchemy_boy',
+                name: '炼丹童子',
+                description: '炼丹师座下童子，精通丹道',
+                pointsModifier: -18,
+                attributeEffects: { comprehension: 18, spirit: 5, fortune: 3, physique: -3 }
+            },
+            {
+                id: 'border_soldier',
+                name: '边镇戍卒',
+                description: '边境守军，久经战阵身经百战',
+                pointsModifier: -12,
+                attributeEffects: { physique: 20, spirit: 5, charisma: 3, comprehension: -3 }
+            },
+            {
+                id: 'ship_slave',
+                name: '灵舟船奴',
+                description: '灵舟上的苦力，见识广博但地位低下',
+                pointsModifier: 8,
+                attributeEffects: { physique: 15, spirit: 3, fortune: -5, charisma: -5, comprehension: 3 }
+            },
+            {
+                id: 'cursed_clan',
+                name: '诅咒之族',
+                description: '背负远古诅咒的种族，命运多舛',
+                pointsModifier: 20,
+                attributeEffects: { potential: 8, spirit: 8, fortune: -20, physique: -5, charisma: -5 }
+            }
+            ];
+        }
+        // 创建局部引用，方便代码使用（不使用const避免重复声明）
+        var origins = window.origins;
+
+        // 天赋列表（从配置文件中获取，如果配置文件未加载则使用备用数据）
+        if (!window.talents) {
+            const talents = [
+            // 正面天赋（消耗点数）
+            {
+                id: 'genius',
+                name: '天赋异禀',
+                type: 'positive',
+                cost: -15,
+                description: '天生灵根超凡，修炼速度极快',
+                effects: { comprehension: 8, potential: 5 }
+            },
+            {
+                id: 'strong_body',
+                name: '先天道体',
+                type: 'positive',
+                cost: -10,
+                description: '天生道体，根骨绝佳',
+                effects: { physique: 10, spirit: 5 }
+            },
+            {
+                id: 'lucky_star',
+                name: '气运之子',
+                type: 'positive',
+                cost: -10,
+                description: '天生好运，容易获得机缘',
+                effects: { fortune: 15, charisma: 3 }
+            },
+            {
+                id: 'swift_comprehension',
+                name: '过目不忘',
+                type: 'positive',
+                cost: -8,
+                description: '悟性惊人，领悟力超群',
+                effects: { comprehension: 12 }
+            },
+            {
+                id: 'charm_master',
+                name: '倾国倾城',
+                type: 'positive',
+                cost: -10,
+                description: '容貌出众，魅力超群',
+                effects: { charisma: 10, fortune: 3 }
+            },
+            {
+                id: 'furnace_cauldron_body',
+                name: '炉鼎之体',
+                type: 'positive',
+                cost: -10,
+                description: '炉鼎体质，容易遭到异性觊觎',
+                effects: { charisma: 15, fortune: -3 }
+            },
+            {
+                id: 'strong_spirit',
+                name: '神识过人',
+                type: 'positive',
+                cost: -12,
+                description: '神识强大，感知敏锐',
+                effects: { spirit: 12, comprehension: 3 }
+            },
+            {
+                id: 'dao_affinity',
+                name: '大道亲和',
+                type: 'positive',
+                cost: -20,
+                description: '与天地大道亲和，修炼事半功倍',
+                effects: { comprehension: 10, potential: 8, spirit: 5 }
+            },
+            {
+                id: 'dao_heart_mirror',
+                name: '道心明镜',
+                type: 'positive',
+                cost: -15,
+                description: '道心坚定如镜，不染尘埃',
+                effects: { spirit: 10, comprehension: 5, charisma: 3 }
+            },
+            {
+                id: 'nine_tribulation_body',
+                name: '九劫轮回不灭体',
+                type: 'positive',
+                cost: -50,
+                description: '传说中的不灭体质，历经九劫而不灭',
+                effects: { physique: 15, potential: 15, spirit: 10, fortune: 10 }
+            },
+            {
+                id: 'chaos_primordial_body',
+                name: '混沌鸿蒙道胎体',
+                type: 'positive',
+                cost: -50,
+                description: '混沌初开时诞生的至高体质',
+                effects: { comprehension: 15, potential: 15, spirit: 10, physique: 10 }
+            },
+            {
+                id: 'myriad_law_void_body',
+                name: '万法皆空无垢体',
+                type: 'positive',
+                cost: -45,
+                description: '万法不侵，纤尘不染的圣洁体质',
+                effects: { spirit: 15, comprehension: 12, fortune: 8 }
+            },
+            {
+                id: 'nine_nether_soul_body',
+                name: '九幽玄煞噬魂体',
+                type: 'positive',
+                cost: -40,
+                description: '九幽之力加身，可吞噬魂魄',
+                effects: { spirit: 15, physique: 10, potential: 8 }
+            },
+            {
+                id: 'star_resonance_body',
+                name: '周天星辰共鸣体',
+                type: 'positive',
+                cost: -45,
+                description: '与周天星辰共鸣，借星辰之力',
+                effects: { spirit: 12, comprehension: 12, fortune: 10 }
+            },
+            {
+                id: 'five_element_creation_body',
+                name: '五行造化生生体',
+                type: 'positive',
+                cost: -40,
+                description: '掌握五行造化之力，生生不息',
+                effects: { comprehension: 12, potential: 12, physique: 8 }
+            },
+            {
+                id: 'qiankun_unity_body',
+                name: '乾坤一炁归元体',
+                type: 'positive',
+                cost: -45,
+                description: '乾坤之力归于一体，万法归元',
+                effects: { spirit: 15, comprehension: 10, potential: 10 }
+            },
+            {
+                id: 'great_sun_glazed_body',
+                name: '大日琉璃金身体',
+                type: 'positive',
+                cost: -40,
+                description: '如大日般璀璨的金身体质',
+                effects: { physique: 15, spirit: 10, charisma: 8 }
+            },
+            {
+                id: 'heavenly_demon_body',
+                name: '他化自在天魔体',
+                type: 'positive',
+                cost: -40,
+                description: '天魔之体，可化万物为己用',
+                effects: { charisma: 15, spirit: 10, potential: 8 }
+            },
+            {
+                id: 'primordial_qi_body',
+                name: '太初一气玄胎',
+                type: 'positive',
+                cost: -45,
+                description: '太初之气孕育的玄妙体质',
+                effects: { potential: 15, comprehension: 12, spirit: 10 }
+            },
+            {
+                id: 'nine_aperture_sword_heart',
+                name: '九窍通明剑心',
+                type: 'positive',
+                cost: -35,
+                description: '剑道天赋卓绝，九窍通明',
+                effects: { comprehension: 12, spirit: 10, potential: 8 }
+            },
+            {
+                id: 'xuanhuang_virtue_body',
+                name: '玄黄厚德圣体',
+                type: 'positive',
+                cost: -40,
+                description: '玄黄功德加身的圣洁体质',
+                effects: { fortune: 15, charisma: 10, spirit: 8 }
+            },
+            {
+                id: 'mortal_tribulation_bone',
+                name: '红尘百劫仙骨',
+                type: 'positive',
+                cost: -35,
+                description: '历经红尘百劫而成的仙骨',
+                effects: { physique: 12, potential: 10, fortune: 5 }
+            },
+            {
+                id: 'five_element_reverse_body',
+                name: '五行颠倒法躯',
+                type: 'positive',
+                cost: -30,
+                description: '可颠倒五行之力的特殊体质',
+                effects: { comprehension: 10, potential: 10, spirit: 5 }
+            },
+            {
+                id: 'void_talisman_medium',
+                name: '虚空画符灵媒',
+                type: 'positive',
+                cost: -30,
+                description: '可在虚空中画符的天赋',
+                effects: { spirit: 12, comprehension: 8, potential: 5 }
+            },
+            {
+                id: 'myriad_poison_mother_body',
+                name: '万毒蛊母源胎',
+                type: 'positive',
+                cost: -35,
+                description: '万毒之母，百毒不侵',
+                effects: { physique: 12, spirit: 10, potential: 8 }
+            },
+            {
+                id: 'devouring_demon_body',
+                name: '吞天魔窍之躯',
+                type: 'positive',
+                cost: -40,
+                description: '可吞噬天地万物的魔窍体质',
+                effects: { potential: 15, physique: 10, spirit: 8 }
+            },
+            {
+                id: 'azure_emperor_longevity_body',
+                name: '青帝长生宝体',
+                type: 'positive',
+                cost: -45,
+                description: '青帝传承的长生体质',
+                effects: { physique: 12, potential: 12, fortune: 10, charisma: 8 }
+            },
+            {
+                id: 'hunyuan_wuji_body',
+                name: '混元无极道胎',
+                type: 'positive',
+                cost: -50,
+                description: '混元无极，道法自然的至高体质',
+                effects: { comprehension: 15, spirit: 15, potential: 12 }
+            },
+            {
+                id: 'mirage_sea_foundation',
+                name: '幻海蜃楼仙基',
+                type: 'positive',
+                cost: -35,
+                description: '如幻海蜃楼般虚实难辨的仙基',
+                effects: { spirit: 12, charisma: 10, fortune: 8 }
+            },
+            // 负面天赋（增加点数）
+            {
+                id: 'weak_body',
+                name: '体弱多病',
+                type: 'negative',
+                cost: 15,
+                description: '身体虚弱，根骨欠佳',
+                effects: { physique: -8, spirit: -4 }
+            },
+            {
+                id: 'bad_luck',
+                name: '霉运缠身',
+                type: 'negative',
+                cost: 15,
+                description: '运气不佳，容易遇到麻烦',
+                effects: { fortune: -10 }
+            },
+            {
+                id: 'slow_mind',
+                name: '愚钝迟缓',
+                type: 'negative',
+                cost: 10,
+                description: '资质平庸，悟性较差',
+                effects: { comprehension: -8 }
+            },
+            {
+                id: 'weak_spirit',
+                name: '神识薄弱',
+                type: 'negative',
+                cost: 10,
+                description: '神识虚弱，感知迟钝',
+                effects: { spirit: -8 }
+            },
+            {
+                id: 'ugly',
+                name: '其貌不扬',
+                type: 'negative',
+                cost: 10,
+                description: '相貌平平，难以吸引他人',
+                effects: { charisma: -8 }
+            },
+            {
+                id: 'karma_debt',
+                name: '因果业障',
+                type: 'negative',
+                cost: 18,
+                description: '前世造孽，起始天谴值较高',
+                effects: { karmaPunishment: 30 }
+            },
+            {
+                id: 'soul_fragment',
+                name: '魂忆碎片',
+                type: 'negative',
+                cost: 20,
+                description: '灵魂残缺，记忆破碎不全',
+                effects: { spirit: -10, comprehension: -5, potential: -5 }
+            },
+            {
+                id: 'karma_fire',
+                name: '业火缠身',
+                type: 'negative',
+                cost: 25,
+                description: '业火焚身，痛苦不堪',
+                effects: { physique: -8, spirit: -8, fortune: -8, karmaPunishment: 50 }
+            },
+            {
+                id: 'trace_separation_body',
+                name: '溯相离析真躯',
+                type: 'negative',
+                cost: 30,
+                description: '真躯离析，难以凝聚',
+                effects: { physique: -12, potential: -10, spirit: -8 }
+            },
+            {
+                id: 'dark_sorrow_fate',
+                name: '闇质同悲命格',
+                type: 'negative',
+                cost: 25,
+                description: '命格悲苦，与黑暗共生',
+                effects: { fortune: -15, charisma: -8, spirit: -5 }
+            },
+            {
+                id: 'scar_locked_body',
+                name: '剎痕永锢道身',
+                type: 'negative',
+                cost: 28,
+                description: '道身被永恒伤痕锁困',
+                effects: { potential: -15, physique: -10, comprehension: -5 }
+            },
+            {
+                id: 'void_burden_womb',
+                name: '虚啮承负灵胎',
+                type: 'negative',
+                cost: 22,
+                description: '灵胎被虚无侵蚀，承负重担',
+                effects: { spirit: -10, potential: -8, fortune: -5 }
+            },
+            {
+                id: 'lost_path_origin',
+                name: '惘径独行本源',
+                type: 'negative',
+                cost: 20,
+                description: '本源迷失，孤独前行',
+                effects: { comprehension: -10, charisma: -8, fortune: -5 }
+            },
+            {
+                id: 'ember_remnant_body',
+                name: '烬末余响残躯',
+                type: 'negative',
+                cost: 25,
+                description: '如灰烬般残破的躯体',
+                effects: { physique: -15, potential: -8, spirit: -5 }
+            },
+            {
+                id: 'silent_cycle_womb',
+                name: '缄默回环圣胎',
+                type: 'negative',
+                cost: 18,
+                description: '圣胎陷入沉默的轮回',
+                effects: { charisma: -10, spirit: -8, comprehension: -5 }
+            },
+            {
+                id: 'eclipse_void_womb',
+                name: '蚀光映虚玄胎',
+                type: 'negative',
+                cost: 22,
+                description: '玄胎被虚无之光侵蚀',
+                effects: { spirit: -12, fortune: -8, potential: -5 }
+            },
+            {
+                id: 'yin_yang_chaos_demon_body',
+                name: '阴阳逆乱魔胎',
+                type: 'negative',
+                cost: 25,
+                description: '阴阳逆乱的魔性体质',
+                effects: { physique: -10, spirit: -10, fortune: -8 }
+            },
+            {
+                id: 'xuanming_weak_water_body',
+                name: '玄冥弱水法胎',
+                type: 'negative',
+                cost: 20,
+                description: '玄冥弱水侵蚀的法胎',
+                effects: { physique: -12, potential: -8, comprehension: -5 }
+            }
+        ];
+        window.talents = talents; // 将talents赋值到window
+        }
+        // 创建局部引用，方便代码使用（不使用const避免重复声明）
+        var talents = window.talents;
+
+        // 游戏状态 - 设置为全局变量供人物图谱使用
+        window.gameState = {
+            variables: {
+                currentDateTime: "",  // 当前日期时间
+                name: "",
+                age: 0,  // 年龄
+                gender: "",
+                realm: "",
+                identity: "",  // 身份
+                spiritStones: 0,  // 灵石（独立变量）
+                karmaFortune: 0,  // 机缘值
+                karmaPunishment: 0,  // 天谴值
+                cultivationProgress: 0,  // 修炼进度（当前值）
+                cultivationProgressMax: 100,  // 修炼进度（最大值）
+                hp: 100,  // 体力当前值
+                hpMax: 100,  // 体力最大值
+                mp: 100,  // 法力当前值
+                mpMax: 100,  // 法力最大值
+                talents: [],  // 天赋列表
+                // 🆕 炼丹炼器等级
+                alchemyLevel: "未入门",  // 炼丹等级 "未入门" 或 "1品初期"到"9品圆满"
+                craftingLevel: "未入门",  // 炼器等级 "未入门" 或 "1品初期"到"9品圆满"
+                // 🆕 势力信息
+                faction: null,  // 势力信息 {name: "势力名", leader: "领袖", location: "所在地", members: ["成员1", "成员2"], description: "介绍"}
+                attributes: {
+                    physique: 0,      // 根骨
+                    fortune: 0,       // 气运
+                    comprehension: 0, // 悟性
+                    spirit: 0,        // 神识
+                    potential: 0,     // 潜力
+                    charisma: 0       // 魅力
+                },
+                equipment: {
+                    head: null,
+                    clothes: null,
+                    feet: null,
+                    treasure1: null,
+                    treasure2: null,
+                    treasure3: null
+                },
+                items: [],
+                techniques: [],  // 功法列表 [{name: "太上洞玄灵宝经", type: "功法", power: 100, mpCost: 50, description: "上古玄门正宗心法"}]
+                spells: [],  // 法术列表 [{name: "九天玄火煞神咒", type: "法术", power: 80, mpCost: 30, description: "召唤天火焚敌"}]
+                relationships: [],
+                location: "",
+                history: []
+            },
+            previousVariables: null, // 用于计算变化
+            conversationHistory: [], // 只存储剧情，不含变量和选项
+            variableSnapshots: [], // 每条消息对应的变量快照
+            isGameStarted: false,
+            isProcessing: false,
+            localOps: { items: [], attrs: [], equip: [] },
+            deleteMode: false, // 删除模式标志
+            // 动态世界相关
+            dynamicWorld: {
+                enabled: false,
+                history: [], // 动态世界生成的历史记录
+                floor: 0, // 当前楼层
+                isProcessing: false,
+                messageInterval: 1, // 生成间隔（每N次用户消息生成一次）
+                messageCounter: 0 // 用户消息计数器
+            },
+            // 操作缓存：记录用户的UI操作，在下次与AI交互时自动附加
+            pendingActions: {
+                pills: {},      // 记录服用的丹药 {丹药名: 数量}
+                equipment: null // 记录最后装备的装备名
+            }
+        };
+
+        // API配置
+        const apiConfig = {
+            type: 'openai',
+            endpoint: '',
+            key: '',
+            model: 'gpt-4o-mini',
+            availableModels: []
+        };
+
+        // 额外API配置（全局变量）
+        window.extraApiConfig = {
+            enabled: false,
+            type: 'openai',
+            endpoint: '',
+            key: '',
+            model: 'gpt-4o-mini',
+            availableModels: []
+        };
+
+        // ==================== 数据持久化系统 ====================
+        // 已迁移到 game-core-systems.js
+        // 包括：initDB, saveGameHistory, saveGameToSlot, loadGameHistory, 
+        // loadGameFromSlot, getAllSaves, deleteSave, clearGameHistory,
+        // exportSaveToFile, exportCurrentGame, importSaveFromFile,
+        // loadSaveData, syncVectorLibraryFromHistory
+
+        // 以下函数已迁移到 game-core-systems.js:
+        // - saveCurrentGame
+        // - showLoadSaveMenu  
+        // - loadSelectedSave
+        // - deleteSelectedSave
+        // - closeLoadSaveMenu
+
+        // 显示主菜单
+        function showMainMenu() {
+            const historyDiv = document.getElementById('gameHistory');
+            historyDiv.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px;">
+                    <h1 style="color: #667eea; font-size: 48px; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);">
+                         白虎宗
+                    </h1>
+                    <p style="color: #666; font-size: 18px; margin-bottom: 50px;">踏上修仙之路，逆天改命</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 20px; max-width: 400px;">
+                        <button onclick="startNewGame()" 
+                                style="padding: 20px 40px; font-size: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.6)'"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.4)'">
+                            🌟 开始新游戏
+                        </button>
+                        
+                        <button onclick="showLoadSaveMenu()" 
+                                style="padding: 20px 40px; font-size: 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4); transition: all 0.3s;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(240, 147, 251, 0.6)'"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(240, 147, 251, 0.4)'">
+                            📂 加载存档
+                        </button>
+                        
+                        <button onclick="importSaveFromFile()" 
+                                style="padding: 20px 40px; font-size: 20px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4); transition: all 0.3s;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(79, 172, 254, 0.6)'"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(79, 172, 254, 0.4)'">
+                            📥 导入存档
+                        </button>
+                    </div>
+                    
+                    <p style="color: #999; font-size: 14px; margin-top: 50px;">提示：请先在设置配置API连接</p>
+                </div>
+            `;
+        }
+
+        // 开始新游戏
+        function startNewGame() {
+            // 重置游戏状态
+            gameState.variables = {
+                name: "",
+                gender: "",
+                realm: "",
+                identity: "",
+                karmaFortune: 0,
+                karmaPunishment: 0,
+                cultivationProgress: 0,
+                cultivationProgressMax: 100,
+                hp: 100,
+                hpMax: 100,
+                mp: 100,
+                mpMax: 100,
+                talents: [],
+                attributes: {
+                    physique: 0,
+                    fortune: 0,
+                    comprehension: 0,
+                    spirit: 0,
+                    potential: 0,
+                    charisma: 0
+                },
+                equipment: {
+                    head: null,
+                    clothes: null,
+                    feet: null,
+                    treasure1: null,
+                    treasure2: null,
+                    treasure3: null
+                },
+                items: [],
+                techniques: [],
+                spells: [],
+                relationships: [],
+                location: "",
+                history: []
+            };
+            gameState.previousVariables = null;
+            gameState.conversationHistory = [];
+            gameState.variableSnapshots = [];
+            gameState.isGameStarted = false;
+            gameState.characterInfo = null;
+
+            // 清空向量库（新游戏不应保留旧存档的记忆）
+            if (window.contextVectorManager) {
+                window.contextVectorManager.clear();
+                window.contextVectorManager.saveToIndexedDB().catch(err => {
+                    console.error('清空向量库失败:', err);
+                });
+                console.log('[新游戏] 已清空向量库');
+            }
+
+            // 重置动态世界数据
+            gameState.dynamicWorld = {
+                enabled: gameState.dynamicWorld?.enabled || false, // 保留启用状态设置
+                history: [],
+                floor: 0,
+                isProcessing: false,
+                messageInterval: gameState.dynamicWorld?.messageInterval || 1, // 保留间隔设置
+                messageCounter: 0 // 重置计数器
+            };
+            console.log('[新游戏] 已重置动态世界数据');
+            
+            // 更新动态世界Tab显示
+            displayDynamicWorldHistory();
+
+            // 重置角色创建状态
+            characterCreation.difficulty = 'normal';
+            characterCreation.maxPoints = 100;
+            characterCreation.remainingPoints = 100;
+            characterCreation.baseAttributes = {
+                physique: 10,
+                fortune: 10,
+                comprehension: 10,
+                spirit: 10,
+                potential: 10,
+                charisma: 10
+            };
+            characterCreation.selectedTalents = [];
+            characterCreation.selectedGender = 'male';
+            characterCreation.selectedOrigin = 'commoner';
+            characterCreation.usedPoints = 0;
+
+            // 显示角色创建界面
+            displayCharacterCreationInHistory();
+        }
+
+        // ========== 角色创建系统函数 ==========
+        // ✅ 已完整迁移到 character-creation.js
+        // 包括所有角色创建相关函数：
+        // - initializeOrigins, selectOrigin
+        // - initializeTalents, toggleTalent
+        // - selectDifficulty, selectGender
+        // - adjustAttribute, updateAttributesDisplay, updatePointsDisplay
+        // - confirmCharacterCreation, displayCharacterCreationInHistory
+        // - getAttributeName
+
+        // ========== 游戏主逻辑 ==========
+        // 已迁移到 game-initialization.js
+
+        // 构建发送给AI的消息
+        async function buildAIMessages(userMessage, originalUserInput = null) {
+            // 🔧 修复：确保修仙游戏规则在最顶部，直接使用 defaultSystemPrompt 作为系统提示词
+            let systemPrompt;
+            
+            // 优先使用 defaultSystemPrompt（白虎宗游戏核心规则）
+            if (typeof defaultSystemPrompt !== 'undefined') {
+                systemPrompt = defaultSystemPrompt;
+                console.log('[系统提示词] 🐅 使用 defaultSystemPrompt（白虎宗核心规则）作为最顶部系统提示词');
+            } else if (typeof getSystemPrompt === 'function') {
+                systemPrompt = getSystemPrompt();
+                console.log('[系统提示词] 🎮 使用 getSystemPrompt() 作为系统提示词');
+            } else {
+                systemPrompt = document.getElementById('systemPrompt').value || '你是一个修仙世界的游戏主持人。';
+                console.log('[系统提示词] 📝 使用 textarea 内容作为系统提示词');
+            }
+            
+            console.log('[系统提示词] 📏 最终系统提示词长度:', systemPrompt.length);
+            console.log('[系统提示词] 📋 前100字符:', systemPrompt.substring(0, 100));
+            const historyDepthInput = document.getElementById('historyDepth');
+            const historyDepth = historyDepthInput ? parseInt(historyDepthInput.value) : 10;
+            const minWordCountInput = document.getElementById('minWordCount');
+            const minWordCount = minWordCountInput ? parseInt(minWordCountInput.value) : 0;
+            
+            // 获取叙事视角设置
+            const narrativePerspectiveInput = document.getElementById('narrativePerspective');
+            const narrativePerspective = narrativePerspectiveInput ? narrativePerspectiveInput.value : 'first';
+            
+            console.log('[叙事视角] 当前设置的视角:', narrativePerspective);
+            
+            // 检查是否启用向量检索
+            const enableVectorRetrieval = document.getElementById('enableVectorRetrieval')?.checked || false;
+            
+            let messages = [];
+
+            // 添加系统提示
+            let finalSystemPrompt = systemPrompt;
+            
+            // 叙事视角在非向量检索模式下作为独立消息（最优先级）
+            if (!enableVectorRetrieval) {
+                const perspectivePrompts = {
+                    'first': '【极其重要】叙事视角强制要求：故事描写需要以主角第一人称视角为主，允许自然叙述与对话',
+            'second': '【极其重要】叙事视角强制要求：故事描写需要以主角第二人称视角为主，允许自然叙述与对话',
+            'third': '【极其重要】叙事视角强制要求：故事描写需要以主角第三人称视角为主，允许自然叙述与对话'
+                };
+                
+                // 叙事视角作为第一个系统消息
+                messages.unshift({
+                    role: 'system',
+                    content: perspectivePrompts[narrativePerspective]
+                });
+                
+                console.log('[叙事视角] 添加的提示词:', perspectivePrompts[narrativePerspective]);
+            }
+            
+            // 设置全局叙事视角变量，供向量检索模式使用
+            window.currentNarrativePerspective = narrativePerspective;
+            
+            if (minWordCount > 0) {
+                finalSystemPrompt += `\n\n【重要】字数要求：你的回复中"story"字段必须至少包含${minWordCount}个中文字符。请确保剧情描写详细、生动、充实，达到字数要求。`;
+            }
+            
+            // 再次强化叙事视角要求（在系统提示词末尾）
+            const reinforcementText = {
+                'first': '\n\n【最终提醒】严格遵守叙事视角：必须使用第一人称"我"，绝对禁止使用"你"或"他/她"描述主角！好的，我已完整输出，谢谢您的使用！',
+                'second': '\n\n【最终提醒】严格遵守叙事视角：必须使用第二人称"你"，绝对禁止使用"我"或"他/她"描述主角！好的，我已完整输出，谢谢您的使用！',
+                'third': '\n\n【最终提醒】严格遵守叙事视角：必须使用第三人称"他/她"，绝对禁止使用"我"或"你"描述主角！好的，我已完整输出，谢谢您的使用！'
+            };
+            finalSystemPrompt += reinforcementText[narrativePerspective];
+            
+            // 【新增】如果启用向量检索，使用优化后的上下文构建
+            if (enableVectorRetrieval && window.contextVectorManager) {
+                console.log('[向量检索模式] 使用智能上下文构建');
+                // 构建包含实际属性的变量状态
+                const variablesForAI = {
+                    ...gameState.variables,
+                    attributes: calculateActualAttributes() // 使用实际属性（包含装备加成）
+                };
+                // 🔧 关键修复：传入原始用户输入用于向量检索
+                const inputForRetrieval = originalUserInput || userMessage;
+                messages = await window.contextVectorManager.buildOptimizedMessages(
+                    finalSystemPrompt,
+                    variablesForAI,
+                    userMessage,
+                    historyDepth,
+                    gameState.conversationHistory,
+                    inputForRetrieval  // 👈 新增：用于向量检索的原始输入
+                );
+                return messages;
+            }
+            
+            // 【原有逻辑】不使用向量检索的情况
+            messages.push({
+                role: 'system',
+                content: finalSystemPrompt
+            });
+
+            // 添加当前变量状态（使用实际属性，包含装备加成）
+            const variablesForAI = {
+                ...gameState.variables,
+                attributes: calculateActualAttributes() // 使用实际属性（包含装备加成）
+            };
+            messages.push({
+                role: 'system',
+                content: '当前角色变量状态：\n```json\n' + JSON.stringify(variablesForAI, null, 2) + '\n```'
+            });
+
+            // 根据历史层数控制添加对话历史
+            if (historyDepth > 0) {
+                // 发送最近N层的对话（只发送剧情内容，不发送选项）
+                const recentHistory = gameState.conversationHistory.slice(-historyDepth * 2); // 乘2因为包含用户和AI的消息
+                messages = messages.concat(recentHistory);
+            }
+            // 如果historyDepth为0，则不添加任何对话历史
+
+            // 添加用户消息
+            messages.push({
+                role: 'user',
+                content: userMessage
+            });
+
+            return messages;
+        }
+
+
+
+
+
+
+
+        // 开始游戏
+        async function startGame() {
+            if (gameState.isProcessing) return;
+
+            if (!apiConfig.endpoint || !apiConfig.key) {
+                alert('请先配置API连接');
+                return;
+            }
+
+            gameState.isProcessing = true;
+
+            // 🔧 将 initPrompt 提升到外部作用域，供 catch 使用
+            let initPrompt = '开始游戏，生成剧情及选项。';
+
+            try {
+                // 构建角色初始化提示
+                if (gameState.characterInfo) {
+                    const info = gameState.characterInfo;
+                    initPrompt = `开始游戏。角色信息：姓名${info.name}，年龄${info.age}岁，性别${info.gender}，性格${info.personality}。出身：${info.origin}。难度：${info.difficulty}。`;
+                    if (info.talents && info.talents.length > 0) {
+                        initPrompt += `天赋：${info.talents.join('、')}。`;
+                    }
+                    if (info.customSettings) {
+                        initPrompt += `特殊设定：${info.customSettings}。`;
+                    }
+                    initPrompt += `请根据这些信息，生成一个引人入胜的开局剧情和选项。`;
+                    
+                    // 【关键要求】字数要求和变量更新
+                    initPrompt += `\n\n【重要】字数要求：minWordCount=${document.getElementById('minWordCount').value}，所有后续剧情回复都必须达到或超过此字数。`;
+                    initPrompt += `\n【重要】变量更新：必须在variables中包含完整的角色基础信息、六维属性(attributes)、势力信息(faction)、人际关系(relationships)、道具(items)、历史记录(history)等字段。`;
+                    initPrompt += `\n【重要】新角色生成：当剧情中出现新角色时，必须在variableUpdate中更新该角色的完整信息。`;                  
+                }
+
+                // 将初始化提示添加到历史记录中，以便重新生成功能能正常工作
+                gameState.conversationHistory.push({
+                    role: 'user',
+                    content: initPrompt
+                });
+
+                const response = await callAI(initPrompt);
+
+                // 清空游戏历史区域（移除加载提示）
+                document.getElementById('gameHistory').innerHTML = '';
+
+                // 显示初始化消息
+                displayUserMessage(initPrompt);
+
+                handleAIResponse(response);
+                gameState.isGameStarted = true;
+
+                // 保存游戏历史（标记游戏已开始）
+                await saveGameHistory();
+
+                // 触发动态世界生成（异步，不阻塞主流程）
+                generateDynamicWorld().catch(err => console.error('[动态世界] 生成异常:', err));
+
+            } catch (error) {
+                // ❌ 不要清空历史！只移除加载提示
+                const loadingMsg = document.querySelector('#gameHistory .message.ai-message');
+                if (loadingMsg && loadingMsg.textContent.includes('AI生成开局剧情中')) {
+                    loadingMsg.remove();
+                }
+
+                // 显示用户消息（如果还没显示）
+                if (document.getElementById('gameHistory').children.length === 0) {
+                    displayUserMessage(initPrompt);
+                }
+
+                // 显示错误消息和重试按钮
+                displayErrorMessageWithRetry('游戏启动失败：' + error.message + '\n\n可能原因：网络超时、API密钥错误、模型不可用', async () => {
+                    // 移除错误消息
+                    dismissError();
+                    
+                    // 🔧 从历史记录中移除失败的请求（避免重复）
+                    const lastMsg = gameState.conversationHistory[gameState.conversationHistory.length - 1];
+                    if (lastMsg && lastMsg.role === 'user' && lastMsg.content === initPrompt) {
+                        gameState.conversationHistory.pop();
+                        gameState.variableSnapshots.pop(); // 同时移除快照
+                    }
+                    
+                    // 重新开始游戏
+                    await startGame();
+                });
+            }
+
+            gameState.isProcessing = false;
+        }
+
+        // 处理AI响应
+        function handleAIResponse(response) {
+            // 调试模式：直接显示原始响应，不做任何解析或渲染处理
+            const debugCheckbox = document.getElementById('debugMode');
+            if (debugCheckbox && debugCheckbox.checked) {
+                appendDebug('AI', response);
+                // 调试模式下仅展示，不入库与变量更新
+                return;
+            }
+
+            // ✅ 使用增强版JSON处理工具（保证不会失败）
+            let data;
+            try {
+                data = processAIResponse(response);
+            } catch (error) {
+                console.error('❌ processAIResponse异常:', error);
+                // 降级方案：构造最小可用数据
+                data = {
+                    reasoning: { situation: '解析异常', playerChoice: '', logicChain: [], outcome: '' },
+                    variableChanges: { analysis: 'Parse error', changes: {} },
+                    story: '系统错误：AI响应解析失败\n\n' + response.substring(0, 500),
+                    options: ['重新生成', '尝试继续', '查看日志', '返回菜单', '保存退出']
+                };
+            }
+
+            // 更新变量（支持三种格式）
+            if (data.variableUpdate) {
+                try {
+                    // v3.1 简化格式（推荐）
+                    console.log('[v3.1] 🎯 使用 v3.1 简化格式更新变量');
+                    
+                    // 初始化 v3.1 解析器
+                    if (!window.v31Parser) {
+                        window.v31Parser = new VariableInstructionParserV31(gameState, {
+                            debug: true,
+                            enableRollback: false
+                        });
+                    }
+                    
+                    // 解析并执行变量更新
+                    const result = window.v31Parser.execute(data.variableUpdate);
+                    console.log('[v3.1] ✅ 更新结果:', result);
+                    
+                    updateStatusPanel();
+                    showAttributeChanges();
+                } catch (error) {
+                    console.error('❌ v3.1 变量更新失败:', error);
+                }
+            } else if (data.variableChanges) {
+                try {
+                    // 旧方案：增量更新
+                    applyVariableChanges(data.variableChanges);
+                    updateStatusPanel();
+                    showAttributeChanges();
+                } catch (error) {
+                    console.error('❌ 变量更新失败:', error);
+                }
+            } else if (data.variables) {
+                try {
+                    // 旧方案：完整变量表单（向后兼容）
+                    updateVariables(data.variables);
+                    updateStatusPanel(); // 添加状态面板更新
+                    showAttributeChanges(); // 添加属性变化显示
+                } catch (error) {
+                    console.error('❌ 变量更新失败（旧方案）:', error);
+                }
+            }
+
+            // 处理stats字段（转换为variables中的attributes）
+            if (data.stats) {
+                try {
+                    if (!gameState.variables.attributes) {
+                        gameState.variables.attributes = {};
+                    }
+                    
+                    // 将stats中的属性值合并到attributes中
+                    Object.assign(gameState.variables.attributes, data.stats);
+                    console.log('[属性更新] 📊 从stats字段更新属性:', data.stats);
+                    
+                    // 更新UI
+                    updateStatusPanel();
+                    showAttributeChanges();
+                } catch (error) {
+                    console.error('❌ stats字段处理失败:', error);
+                }
+            }
+
+            // 添加到历史记录（保存剧情 + 原始响应/JSON）
+            if (data.story) {
+                gameState.conversationHistory.push({
+                    role: 'assistant',
+                    content: data.story,
+                    rawResponse: response,
+                    parsed: data
+                });
+
+                // 保存当前变量快照
+                gameState.variableSnapshots.push(JSON.parse(JSON.stringify(gameState.variables)));
+                
+                // 【新增】如果启用向量检索，添加到向量库
+                const enableVectorRetrieval = document.getElementById('enableVectorRetrieval')?.checked || false;
+                if (enableVectorRetrieval && window.contextVectorManager && gameState.conversationHistory.length >= 2) {
+                    const turnIndex = Math.floor(gameState.conversationHistory.length / 2);
+                    const userMessage = gameState.conversationHistory[gameState.conversationHistory.length - 2].content;
+                    const aiResponse = data.story;
+                    
+                    // 异步添加到向量库（不阻塞游戏流程）
+                    window.contextVectorManager.addConversation(
+                        userMessage,
+                        aiResponse,
+                        turnIndex,
+                        gameState.variables
+                    ).then(() => {
+                        // 🆕 提取并向量化history
+                        if (data.variableUpdate && data.variableUpdate.history) {
+                            // 如果是v3.1格式，history可能在variableUpdate中
+                            const historyArray = Array.isArray(data.variableUpdate.history) 
+                                ? data.variableUpdate.history 
+                                : [data.variableUpdate.history];
+                            
+                            return window.contextVectorManager.addHistoryToVectorLib(historyArray, turnIndex);
+                        } else if (gameState.variables.history && Array.isArray(gameState.variables.history) && gameState.variables.history.length > 0) {
+                            // 如果history在variables中（已经被v3.1解析器更新）
+                            // 只向量化最新添加的history（假设是最后一条）
+                            const latestHistory = gameState.variables.history.slice(-1);
+                            return window.contextVectorManager.addHistoryToVectorLib(latestHistory, turnIndex);
+                        }
+                    }).then(() => {
+                        // 🆕 重建history矩阵（确保所有向量都被正确分层）
+                        if (window.matrixManager && window.contextVectorManager.historyEmbeddings.length > 0) {
+                            // 清空并重建整个矩阵，确保正确的分层
+                            window.matrixManager.historyMatrix.clear();
+                            window.matrixManager.initializeHistoryMatrix().then(data => {
+                                if (data && data.stats.totalLayers > 0) {
+                                    console.log(`[History矩阵] 自动重建完成：${data.stats.totalLayers}层，${data.stats.totalVectors}个向量`);
+                                }
+                            }).catch(error => {
+                                console.warn('[History矩阵] 自动重建失败:', error.message);
+                            });
+                        }
+                        
+                        // 保存向量库到IndexedDB
+                        return window.contextVectorManager.saveToIndexedDB();
+                    }).catch(err => {
+                        console.error('❌ 向量库添加失败:', err);
+                        console.error('错误详情:', err.stack);
+                        
+                        // 自动回退到关键词方法
+                        const currentMethod = window.contextVectorManager.embeddingMethod;
+                        if (currentMethod !== 'keyword') {
+                            console.warn(`[向量库] ${currentMethod}方法失败，自动切换到关键词方法`);
+                            window.contextVectorManager.setEmbeddingMethod('keyword');
+                            document.getElementById('vectorMethod').value = 'keyword';
+                            
+                            // 提示用户
+                            setTimeout(() => {
+                                alert(`⚠️ 向量化失败\n\n${currentMethod}方法出现错误，已自动切换到"关键词匹配"方法\n\n错误：${err.message}\n\n游戏将正常继续，不影响使用。`);
+                            }, 1000);
+                        }
+                    });
+                }
+            }
+
+            // 正常显示消息
+            displayAIMessage(data.story, data.options, data.reasoning);
+            
+            // 保存游戏历史到 IndexedDB
+            saveGameHistory().catch(err => console.error('保存历史失败:', err));
+
+            if (gameState && gameState.localOps) {
+                gameState.localOps = { items: [], attrs: [], equip: [] };
+            }
+        }
+
+        // 调试模式：切换显示区域
+        // 调试模式相关函数已迁移到 game-initialization.js
+
+        // 恢复对话历史显示
+        // restoreConversationHistory 已迁移到 game-initialization.js
+
+        /**
+         * 应用增量变量更新（新方案）
+         * @param {Object} variableChanges - AI返回的variableChanges对象
+         * @returns {Object} 更新后的变量状态
+         */
+        function applyVariableChanges(variableChanges) {
+            if (!variableChanges) {
+                console.warn('[变量更新] 没有变量变化数据');
+                return gameState.variables;
+            }
+
+            const { analysis, changes = {}, arrayChanges, newFields = [], removedFields = [] } = variableChanges;
+
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+            console.log('[变量更新] 开始应用增量更新');
+            if (analysis) {
+                console.log('[变量更新] 分析:', analysis);
+            }
+            if (Object.keys(changes).length > 0) {
+                console.log('[变量更新] 变化字段:', Object.keys(changes));
+            }
+            if (arrayChanges) {
+                console.log('[变量更新] 数组增量更新:', Object.keys(arrayChanges));
+            }
+            if (newFields.length > 0) {
+                console.log('[变量更新] 新增字段:', newFields);
+            }
+            if (removedFields.length > 0) {
+                console.log('[变量更新] 删除字段:', removedFields);
+            }
+
+            // 保存之前的变量状态用于计算变化
+            gameState.previousVariables = JSON.parse(JSON.stringify(gameState.variables));
+
+            // 1. 处理普通字段变化
+            for (const [key, value] of Object.entries(changes)) {
+                applyFieldChange(key, value);
+            }
+
+            // 2. 处理数组字段增量更新（新功能）
+            if (arrayChanges) {
+                applyArrayChanges(arrayChanges);
+            }
+
+            // 3. 删除标记为移除的字段
+            removedFields.forEach(field => {
+                if (gameState.variables.hasOwnProperty(field)) {
+                    delete gameState.variables[field];
+                    console.log(`[变量更新] ❌ 删除字段: ${field}`);
+                }
+            });
+
+            console.log('[变量更新] ✅ 增量更新完成');
+            console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+            return gameState.variables;
+        }
+
+        /**
+         * 应用数组字段的增量更新（add/remove/update模式）
+         * @param {Object} arrayChanges - 数组增量更新对象
+         */
+        function applyArrayChanges(arrayChanges) {
+            for (const [arrayName, operations] of Object.entries(arrayChanges)) {
+                if (!gameState.variables[arrayName]) {
+                    gameState.variables[arrayName] = [];
+                }
+
+                const array = gameState.variables[arrayName];
+                const emoji = {
+                    'items': '🎒',
+                    'relationships': '👥',
+                    'techniques': '📖',
+                    'spells': '✨'
+                }[arrayName] || '📝';
+
+                console.log(`[数组更新] ${emoji} 处理 ${arrayName}:`);
+
+                // 检查是否是直接数组格式（AI返回的格式）
+                if (Array.isArray(operations)) {
+                    console.log(`  📋 检测到直接数组格式，处理 ${operations.length} 个项目`);
+                    operations.forEach(item => {
+                        addToArray(array, item, arrayName);
+                    });
+                } else {
+                    // 标准操作格式 { add: [...], remove: [...], update: [...] }
+                    // 1. 处理删除操作
+                    if (operations.remove && operations.remove.length > 0) {
+                        operations.remove.forEach(item => {
+                            removeFromArray(array, item, arrayName);
+                        });
+                    }
+
+                    // 2. 处理新增操作
+                    if (operations.add && operations.add.length > 0) {
+                        operations.add.forEach(item => {
+                            addToArray(array, item, arrayName);
+                        });
+                    }
+
+                    // 3. 处理更新操作
+                    if (operations.update && operations.update.length > 0) {
+                        operations.update.forEach(item => {
+                            updateInArray(array, item, arrayName);
+                        });
+                    }
+                }
+            }
+        }
+
+        /**
+         * 从数组中删除元素或减少数量
+         * @param {Array} array - 目标数组
+         * @param {Object} item - 要删除的元素
+         * @param {string} arrayName - 数组名称
+         */
+        function removeFromArray(array, item, arrayName) {
+            const index = array.findIndex(el => el.name === item.name);
+
+            if (index === -1) {
+                console.warn(`  ⚠️ 尝试删除不存在的${arrayName}: ${item.name}`);
+                return;
+            }
+
+            // 如果是items且指定了count，则减少数量
+            if (arrayName === 'items' && item.count !== undefined) {
+                const oldCount = array[index].count;
+                array[index].count -= item.count;
+                console.log(`  ➖ ${item.name}: 数量 -${item.count} (${oldCount} → ${array[index].count})`);
+
+                // 如果数量<=0，则完全删除
+                if (array[index].count <= 0) {
+                    array.splice(index, 1);
+                    console.log(`  ❌ ${item.name}: 数量归零，已从物品列表删除`);
+                }
+            } else {
+                // 完全删除
+                array.splice(index, 1);
+                console.log(`  ❌ 删除 ${item.name}`);
+            }
+        }
+
+        /**
+         * 向数组中添加元素或增加数量
+         * @param {Array} array - 目标数组
+         * @param {Object} item - 要添加的元素
+         * @param {string} arrayName - 数组名称
+         */
+        function addToArray(array, item, arrayName) {
+            const existingIndex = array.findIndex(el => el.name === item.name);
+
+            // 如果是items且已存在，则增加数量
+            if (arrayName === 'items' && existingIndex !== -1) {
+                const oldCount = array[existingIndex].count;
+                array[existingIndex].count += item.count;
+                console.log(`  ➕ ${item.name}: 数量 +${item.count} (${oldCount} → ${array[existingIndex].count})`);
+
+                // 更新其他字段（如果有变化）
+                Object.assign(array[existingIndex], item);
+            } else if (existingIndex !== -1) {
+                // 其他数组类型，如果已存在则替换
+                array[existingIndex] = item;
+                console.log(`  🔄 替换 ${item.name}`);
+            } else {
+                // 不存在则新增
+                array.push(item);
+                const extra = arrayName === 'items' ? ` (数量: ${item.count})` : '';
+                console.log(`  ✅ 新增 ${item.name}${extra}`);
+            }
+        }
+
+        /**
+         * 更新数组中已存在的元素
+         * @param {Array} array - 目标数组
+         * @param {Object} item - 要更新的元素（包含name和要更新的字段）
+         * @param {string} arrayName - 数组名称
+         */
+        function updateInArray(array, item, arrayName) {
+            const existingIndex = array.findIndex(el => el.name === item.name);
+
+            if (existingIndex === -1) {
+                console.warn(`  ⚠️ 尝试更新不存在的${arrayName}: ${item.name}`);
+                return;
+            }
+
+            // 记录旧值
+            const oldValues = {};
+            const updatedFields = Object.keys(item).filter(k => k !== 'name');
+            updatedFields.forEach(field => {
+                oldValues[field] = array[existingIndex][field];
+            });
+
+            // 特殊处理：relationships数组的history字段需要追加而不是覆盖
+            if (arrayName === 'relationships' && item.history) {
+                const existingHistory = array[existingIndex].history || [];
+                const newHistory = item.history || [];
+                
+                // 去重合并：只添加不重复的历史记录
+                const mergedHistory = [...existingHistory];
+                let addedCount = 0;
+                
+                newHistory.forEach(newItem => {
+                    // 检查是否已存在相同内容（去除首尾空格后比较）
+                    const trimmedNew = newItem.trim();
+                    const isDuplicate = mergedHistory.some(existing => existing.trim() === trimmedNew);
+                    
+                    if (!isDuplicate && trimmedNew) {
+                        mergedHistory.push(newItem);
+                        addedCount++;
+                    }
+                });
+                
+                // 更新history字段为合并后的数组
+                item.history = mergedHistory;
+                
+                if (addedCount > 0) {
+                    console.log(`    - history: 追加了 ${addedCount} 条新记录（总计：${mergedHistory.length}条）`);
+                }
+            }
+
+            // 合并更新字段
+            Object.assign(array[existingIndex], item);
+
+            // 输出详细日志
+            console.log(`  🔧 更新 ${item.name}:`);
+            updatedFields.forEach(field => {
+                if (field === 'history' && arrayName === 'relationships') {
+                    // history字段已经在上面特殊处理过了，跳过详细日志
+                    return;
+                }
+                console.log(`    - ${field}: ${JSON.stringify(oldValues[field])} → ${JSON.stringify(item[field])}`);
+            });
+        }
+
+        /**
+         * 应用单个字段的变化
+         * @param {string} key - 字段名
+         * @param {any} value - 新值
+         */
+        function applyFieldChange(key, value) {
+            // ========== 特殊处理1：history字段使用追加模式 ==========
+            if (key === 'history') {
+                if (!gameState.variables.history) {
+                    gameState.variables.history = [];
+                }
+                if (Array.isArray(value)) {
+                    let addedCount = 0;
+                    value.forEach(newRecord => {
+                        const trimmed = newRecord.trim();
+                        const isDuplicate = gameState.variables.history.some(
+                            existing => existing.trim() === trimmed
+                        );
+                        if (!isDuplicate && trimmed) {
+                            gameState.variables.history.push(newRecord);
+                            addedCount++;
+                            console.log(`[变量更新] 📜 新增历史: ${newRecord.substring(0, 50)}...`);
+                        }
+                    });
+                    console.log(`[变量更新] history: 追加了 ${addedCount} 条新记录`);
+                }
+                return;
+            }
+
+            // ========== 特殊处理2：对象字段使用部分更新模式 ==========
+            if (key === 'attributes' || key === 'equipment') {
+                if (!gameState.variables[key]) {
+                    gameState.variables[key] = {};
+                }
+                const changedKeys = Object.keys(value);
+                Object.assign(gameState.variables[key], value);
+                console.log(`[变量更新] 🔧 部分更新 ${key}: [${changedKeys.join(', ')}]`);
+
+                // 详细记录每个子字段的变化
+                changedKeys.forEach(subKey => {
+                    const oldValue = gameState.previousVariables?.[key]?.[subKey];
+                    const newValue = value[subKey];
+                    if (oldValue !== undefined) {
+                        console.log(`  - ${subKey}: ${JSON.stringify(oldValue)} -> ${JSON.stringify(newValue)}`);
+                    } else {
+                        console.log(`  - ${subKey}: (新增) ${JSON.stringify(newValue)}`);
+                    }
+                });
+                return;
+            }
+
+            // ========== 特殊处理3：数组字段使用完整替换模式（带安全检查）==========
+            if (key === 'items' || key === 'relationships' || key === 'techniques' || key === 'spells') {
+                const oldCount = gameState.variables[key] ? gameState.variables[key].length : 0;
+                const newCount = Array.isArray(value) ? value.length : 0;
+
+                // 安全检查：防止数据丢失
+                if (oldCount > 5 && newCount < oldCount / 2 && newCount > 0) {
+                    console.warn(`⚠️ ${key}数量异常减少：从${oldCount}个减少到${newCount}个，可能存在数据丢失！`);
+                    console.warn(`⚠️ 建议检查AI返回的${key}数组是否完整`);
+                }
+
+                gameState.variables[key] = value;
+
+                const emoji = {
+                    'items': '🎒',
+                    'relationships': '👥',
+                    'techniques': '📖',
+                    'spells': '✨'
+                }[key] || '📝';
+
+                console.log(`[变量更新] ${emoji} 完整替换 ${key}: ${oldCount} -> ${newCount}`);
+
+                // 如果是items，详细记录新增和删除的物品
+                if (key === 'items' && gameState.previousVariables?.items) {
+                    const oldItems = new Set(gameState.previousVariables.items.map(i => i.name));
+                    const newItems = new Set(value.map(i => i.name));
+
+                    const added = [...newItems].filter(name => !oldItems.has(name));
+                    const removed = [...oldItems].filter(name => !newItems.has(name));
+
+                    if (added.length > 0) {
+                        console.log(`  ✅ 新增物品: ${added.join(', ')}`);
+                    }
+                    if (removed.length > 0) {
+                        console.log(`  ❌ 移除物品: ${removed.join(', ')}`);
+                    }
+                }
+
+                // 如果是relationships，详细记录新增和删除的关系
+                if (key === 'relationships' && gameState.previousVariables?.relationships) {
+                    const oldRels = new Set(gameState.previousVariables.relationships.map(r => r.name));
+                    const newRels = new Set(value.map(r => r.name));
+
+                    const added = [...newRels].filter(name => !oldRels.has(name));
+                    const removed = [...oldRels].filter(name => !newRels.has(name));
+
+                    if (added.length > 0) {
+                        console.log(`  ✅ 新增关系: ${added.join(', ')}`);
+                    }
+                    if (removed.length > 0) {
+                        console.log(`  ❌ 移除关系: ${removed.join(', ')}`);
+                    }
+                }
+
+                return;
+            }
+
+            // ========== 默认处理：直接替换 ==========
+            const oldValue = gameState.variables[key];
+            gameState.variables[key] = value;
+
+            // 根据字段类型选择合适的emoji
+            const emoji = {
+                'hp': '❤️',
+                'mp': '💙',
+                'spiritStones': '💰',
+                'age': '📅',
+                'realm': '⚡',
+                'location': '📍',
+                'karmaFortune': '🍀',
+                'karmaPunishment': '⚠️',
+                'cultivationProgress': '📈',
+                'faction': '🏛️'
+            }[key] || '🔄';
+
+            if (oldValue !== undefined && oldValue !== value) {
+                console.log(`[变量更新] ${emoji} ${key}: ${JSON.stringify(oldValue)} -> ${JSON.stringify(value)}`);
+            } else {
+                console.log(`[变量更新] ${emoji} ${key}: (新增) ${JSON.stringify(value)}`);
+            }
+        }
+
+        // 更新变量（旧方案，保留用于向后兼容）
+        function updateVariables(newVars) {
+            // 保存之前的变量状态用于计算变化
+            gameState.previousVariables = JSON.parse(JSON.stringify(gameState.variables));
+
+            // 合并变量
+            if (newVars.currentDateTime !== undefined) gameState.variables.currentDateTime = newVars.currentDateTime;
+            if (newVars.name !== undefined) gameState.variables.name = newVars.name;
+            if (newVars.age !== undefined) gameState.variables.age = newVars.age;
+            if (newVars.gender !== undefined) gameState.variables.gender = newVars.gender;
+            if (newVars.realm !== undefined) gameState.variables.realm = newVars.realm;
+            if (newVars.identity !== undefined) gameState.variables.identity = newVars.identity;
+            if (newVars.spiritStones !== undefined) gameState.variables.spiritStones = newVars.spiritStones;
+            if (newVars.location !== undefined) gameState.variables.location = newVars.location;
+            if (newVars.karmaFortune !== undefined) gameState.variables.karmaFortune = newVars.karmaFortune;
+            if (newVars.karmaPunishment !== undefined) gameState.variables.karmaPunishment = newVars.karmaPunishment;
+            if (newVars.cultivationProgress !== undefined) gameState.variables.cultivationProgress = newVars.cultivationProgress;
+            if (newVars.cultivationProgressMax !== undefined) gameState.variables.cultivationProgressMax = newVars.cultivationProgressMax;
+            if (newVars.hp !== undefined) gameState.variables.hp = newVars.hp;
+            if (newVars.hpMax !== undefined) gameState.variables.hpMax = newVars.hpMax;
+            if (newVars.mp !== undefined) gameState.variables.mp = newVars.mp;
+            if (newVars.mpMax !== undefined) gameState.variables.mpMax = newVars.mpMax;
+            if (newVars.talents !== undefined) gameState.variables.talents = newVars.talents;
+
+            // 更新炼丹炼器等级
+            if (newVars.alchemyLevel !== undefined) gameState.variables.alchemyLevel = newVars.alchemyLevel;
+            if (newVars.craftingLevel !== undefined) gameState.variables.craftingLevel = newVars.craftingLevel;
+
+            // 更新势力信息
+            if (newVars.faction !== undefined) gameState.variables.faction = newVars.faction;
+
+            // 更新属性
+            if (newVars.attributes) {
+                Object.assign(gameState.variables.attributes, newVars.attributes);
+            }
+
+            // 更新装备
+            if (newVars.equipment) {
+                Object.assign(gameState.variables.equipment, newVars.equipment);
+            }
+
+            // 更新道具（完全替换，带安全检查）
+            if (newVars.items) {
+                const oldCount = gameState.variables.items ? gameState.variables.items.length : 0;
+                const newCount = newVars.items.length;
+                if (oldCount > 5 && newCount < oldCount / 2 && newCount > 0) {
+                    console.warn(`⚠️ 道具数量异常减少：从${oldCount}个减少到${newCount}个，可能存在数据丢失！`);
+                }
+
+                if (!Array.isArray(gameState.variables.items)) {
+                    gameState.variables.items = [];
+                }
+
+                const nameIndex = new Map(gameState.variables.items.map(i => [i.name, i]));
+                const equippedNames = new Set(Object.values(gameState.variables.equipment || {})
+                    .filter(e => e && e.name)
+                    .map(e => e.name));
+                for (const incoming of newVars.items) {
+                    if (!incoming || !incoming.name) continue;
+                    const existing = nameIndex.get(incoming.name);
+                    const isEquipped = equippedNames.has(incoming.name);
+                    if (existing) {
+                        if (incoming.type !== undefined) existing.type = incoming.type;
+                        if (incoming.effects !== undefined) existing.effects = incoming.effects;
+                        if (incoming.count !== undefined) {
+                            if (incoming._op === 'set') {
+                                existing.count = incoming.count;
+                            } else if (incoming._op === 'decrease') {
+                                existing.count = Math.max(0, (existing.count || 0) - incoming.count);
+                            } else if (incoming._op === 'increase') {
+                                existing.count = (existing.count || 0) + (incoming.count || 1);
+                            } else {
+                                // 默认为快照：不对已装备物品回仓，且不减少本地消费
+                                if (isEquipped) {
+                                    existing.count = Math.max((existing.count || 0), 0);
+                                } else {
+                                    existing.count = Math.max((existing.count || 0), incoming.count || 0);
+                                }
+                            }
+                        }
+                    } else {
+                        // 没有本地记录：若该物品当前已装备且AI未提供_op，则视为装备来源，避免回仓重复
+                        if (isEquipped && !incoming._op) {
+                            continue;
+                        }
+                        gameState.variables.items.push({
+                            name: incoming.name,
+                            count: incoming._op === 'set' ? (incoming.count ?? 1) : (incoming.count ?? 1),
+                            type: incoming.type,
+                            effects: incoming.effects
+                        });
+                    }
+                }
+            }
+
+            // 更新功法（完全替换，带安全检查）
+            if (newVars.techniques) {
+                const oldCount = gameState.variables.techniques ? gameState.variables.techniques.length : 0;
+                const newCount = newVars.techniques.length;
+                if (oldCount > 3 && newCount < oldCount / 2 && newCount > 0) {
+                    console.warn(`⚠️ 功法数量异常减少：从${oldCount}个减少到${newCount}个，可能存在数据丢失！`);
+                }
+                gameState.variables.techniques = newVars.techniques;
+            }
+
+            // 更新法术（完全替换，带安全检查）
+            if (newVars.spells) {
+                const oldCount = gameState.variables.spells ? gameState.variables.spells.length : 0;
+                const newCount = newVars.spells.length;
+                if (oldCount > 3 && newCount < oldCount / 2 && newCount > 0) {
+                    console.warn(`⚠️ 法术数量异常减少：从${oldCount}个减少到${newCount}个，可能存在数据丢失！`);
+                }
+                gameState.variables.spells = newVars.spells;
+            }
+
+            // 更新人际关系（完全替换，带安全检查）
+            if (newVars.relationships) {
+                const oldCount = gameState.variables.relationships ? gameState.variables.relationships.length : 0;
+                const newCount = newVars.relationships.length;
+                if (oldCount > 3 && newCount < oldCount / 2 && newCount > 0) {
+                    console.warn(`⚠️ 人际关系数量异常减少：从${oldCount}个减少到${newCount}个，可能存在数据丢失！`);
+                }
+                gameState.variables.relationships = newVars.relationships;
+            }
+
+            // 更新历史（追加模式 - 只添加新记录，不删除旧记录）
+            if (newVars.history && Array.isArray(newVars.history)) {
+                // 确保history数组存在
+                if (!gameState.variables.history) {
+                    gameState.variables.history = [];
+                }
+                
+                // 追加新历史记录（去重：避免添加完全相同的记录）
+                newVars.history.forEach(newRecord => {
+                    const trimmedNew = newRecord.trim();
+                    // 检查是否已存在相同内容（去除首尾空格后比较）
+                    const isDuplicate = gameState.variables.history.some(existing => 
+                        existing.trim() === trimmedNew
+                    );
+                    
+                    if (!isDuplicate && trimmedNew) {
+                        gameState.variables.history.push(newRecord);
+                        console.log('[历史记录] 新增:', newRecord.substring(0, 50) + '...');
+                    }
+                });
+            }
+
+            // 更新UI
+            updateStatusPanel();
+
+            // 显示属性变化
+            showAttributeChanges();
+        }
+
+        // 更新状态面板
+        function updateStatusPanel() {
+            const vars = gameState.variables;
+
+            // 使用配置文件中的渲染函数
+            if (window.XiuxianGameConfig && window.XiuxianGameConfig.renderStatus) {
+                window.XiuxianGameConfig.renderStatus(vars);
+                return;
+            }
+
+            // 以下是备用渲染代码（如果配置文件未加载）
+
+            // 时间
+            document.getElementById('currentDateTime').textContent = vars.currentDateTime || '-';
+
+            // 基本信息
+            document.getElementById('charName').textContent = vars.name || '未知';
+            document.getElementById('charAge').textContent = vars.age || '-';
+            document.getElementById('charGender').textContent = vars.gender || '-';
+            document.getElementById('charIdentity').textContent = vars.identity || '-';
+            document.getElementById('charRealm').textContent = vars.realm || '-';
+            document.getElementById('charLocation').textContent = vars.location || '-';
+            document.getElementById('charTalents').textContent = vars.talents && vars.talents.length > 0 ? vars.talents.join('、') : '-';
+
+            // 货币
+            document.getElementById('spiritStones').textContent = vars.spiritStones || 0;
+
+            // 体力法力
+            const hp = vars.hp || 0;
+            const hpMax = vars.hpMax || 100;
+            const mp = vars.mp || 0;
+            const mpMax = vars.mpMax || 100;
+            document.getElementById('hp').textContent = `${hp}/${hpMax}`;
+            document.getElementById('mp').textContent = `${mp}/${mpMax}`;
+
+            // 特殊属性
+            document.getElementById('karmaFortune').textContent = vars.karmaFortune || 0;
+            document.getElementById('karmaPunishment').textContent = vars.karmaPunishment || 0;
+            const cultivationProgress = vars.cultivationProgress || 0;
+            const cultivationProgressMax = vars.cultivationProgressMax || 100;
+            document.getElementById('cultivationProgress').textContent = `${cultivationProgress}/${cultivationProgressMax}`;
+
+            // 炼丹炼器等级
+            const alchemyLevel = vars.alchemyLevel || "未入门";
+            const craftingLevel = vars.craftingLevel || "未入门";
+
+            // 炼丹等级
+            document.getElementById('alchemyLevel').textContent = alchemyLevel;
+
+            // 炼器等级
+            document.getElementById('craftingLevel').textContent = craftingLevel;
+
+            // 势力信息
+            const factionInfo = document.getElementById('factionInfo');
+            if (vars.faction && vars.faction.name) {
+                const faction = vars.faction;
+                const membersText = faction.members && faction.members.length > 0
+                    ? faction.members.join('、')
+                    : '无';
+
+                factionInfo.innerHTML = `
+                    <div class="relationship-detail-row">
+                        <span class="relationship-detail-label">势力名：</span>
+                        <span class="relationship-detail-value">${faction.name}</span>
+                    </div>
+                    ${faction.leader ? `<div class="relationship-detail-row">
+                        <span class="relationship-detail-label">领袖：</span>
+                        <span class="relationship-detail-value">${faction.leader}</span>
+                    </div>` : ''}
+                    ${faction.location ? `<div class="relationship-detail-row">
+                        <span class="relationship-detail-label">所在地：</span>
+                        <span class="relationship-detail-value">${faction.location}</span>
+                    </div>` : ''}
+                    ${faction.members && faction.members.length > 0 ? `<div class="relationship-detail-row">
+                        <span class="relationship-detail-label">主要成员：</span>
+                        <span class="relationship-detail-value">${membersText}</span>
+                    </div>` : ''}
+                    ${faction.description ? `<div class="relationship-detail-row" style="flex-direction: column; align-items: flex-start;">
+                        <span class="relationship-detail-label">介绍：</span>
+                        <span class="relationship-detail-value" style="margin-top: 5px; line-height: 1.6;">${faction.description}</span>
+                    </div>` : ''}
+                `;
+            } else {
+                factionInfo.innerHTML = '<div style="text-align: center; color: #999;">暂无势力</div>';
+            }
+
+            // 更新雷达图（雷达图内部会计算实际属性）
+            drawRadarChart();
+
+            // 装备栏
+            updateEquipmentDisplay();
+
+            // 功法列表
+            const techniquesList = document.getElementById('techniquesList');
+            if (vars.techniques && vars.techniques.length > 0) {
+                techniquesList.innerHTML = vars.techniques.map((tech, index) => {
+                    return `<div class="item-entry" style="flex-direction: column; align-items: flex-start;">
+                        <div style="width: 100%;">
+                            <div style="font-weight: bold; color: #667eea;">${tech.name}</div>
+                            <div style="font-size: 11px; color: #666; margin-top: 3px;">${tech.description || ''}</div>
+                            <div style="font-size: 11px; color: #999; margin-top: 3px;">
+                                威力: ${tech.power || 0} | 消耗法力: ${tech.mpCost || 0}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                techniquesList.innerHTML = '<div style="text-align: center; color: #999;">暂无功法</div>';
+            }
+
+            // 法术列表
+            const spellsList = document.getElementById('spellsList');
+            if (vars.spells && vars.spells.length > 0) {
+                spellsList.innerHTML = vars.spells.map((spell, index) => {
+                    return `<div class="item-entry" style="flex-direction: column; align-items: flex-start;">
+                        <div style="width: 100%;">
+                            <div style="font-weight: bold; color: #764ba2;">${spell.name}</div>
+                            <div style="font-size: 11px; color: #666; margin-top: 3px;">${spell.description || ''}</div>
+                            <div style="font-size: 11px; color: #999; margin-top: 3px;">
+                                威力: ${spell.power || 0} | 消耗法力: ${spell.mpCost || 0}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                spellsList.innerHTML = '<div style="text-align: center; color: #999;">暂无法术</div>';
+            }
+
+            // 道具
+            const itemsList = document.getElementById('itemsList');
+            if (vars.items && vars.items.length > 0) {
+                itemsList.innerHTML = vars.items.map((item, index) => {
+                    const isEquipment = item.type && item.type.startsWith('装备-');
+                    const isPill = item.type && (item.type.includes('丹药') || item.type.includes('丹'));
+                    
+                    const equipBtn = isEquipment ? `<button class="equip-btn" onclick="equipItem('${item.name}')">装备</button>` : '';
+                    const usePillBtn = isPill ? `<button class="equip-btn" onclick="usePill(${index})" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">服用</button>` : '';
+                    
+                    const effectsText = item.effects ? Object.entries(item.effects).map(([attr, value]) => {
+                        if (attr === 'cultivationProgress') {
+                            return `修炼进度+${value}`;
+                        } else if (attr === 'hp') {
+                            return `体力${value > 0 ? '+' : ''}${value}`;
+                        } else if (attr === 'mp') {
+                            return `法力${value > 0 ? '+' : ''}${value}`;
+                        } else if (attr === 'hpMax') {
+                            return `体力上限${value > 0 ? '+' : ''}${value}`;
+                        } else if (attr === 'mpMax') {
+                            return `法力上限${value > 0 ? '+' : ''}${value}`;
+                        }
+                        return `${getAttributeName(attr)}${value > 0 ? '+' : ''}${value}`;
+                    }).join(' ') : '';
+
+                    return `<div class="item-entry">
+                        <div>
+                            <div>${item.name} x${item.count}</div>
+                            <div style="font-size: 11px; color: #666;">${item.type || ''} ${effectsText}</div>
+                        </div>
+                        <div class="item-actions">
+                            ${equipBtn}
+                            ${usePillBtn}
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                itemsList.innerHTML = '<div style="text-align: center; color: #999;">暂无道具</div>';
+            }
+
+            // 人际关系
+            const relationshipsList = document.getElementById('relationshipsList');
+            if (vars.relationships && vars.relationships.length > 0) {
+                relationshipsList.innerHTML = vars.relationships.map((rel, index) => {
+                    // 根据好感度设置颜色类
+                    let favorClass = '';
+                    if (rel.favor >= 60) {
+                        favorClass = 'high';
+                    } else if (rel.favor <= -30) {
+                        favorClass = 'low';
+                    }
+
+                    // 构建历史互动记录
+                    let historyHtml = '';
+                    if (rel.history && rel.history.length > 0) {
+                        historyHtml = `
+                            <div class="relationship-history">
+                                <div class="relationship-history-title">📜 历史互动</div>
+                                ${rel.history.map(h => `<div class="relationship-history-item">• ${h}</div>`).join('')}
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div class="relationship-card" onclick="toggleRelationshipDetails(${index})">
+                            <div class="relationship-header">
+                                <div style="display: flex; align-items: center; gap: 5px;">
+                                    <button class="equip-btn" onclick="event.stopPropagation(); deleteRelationship(${index})" 
+                                        style="background: linear-gradient(135deg, #c85a54 0%, #a84842 100%); padding: 3px 8px;">
+                                        🗑️
+                                    </button>
+                                    <span class="relationship-name">${rel.name} (${rel.relation})</span>
+                                </div>
+                                <span class="relationship-favor ${favorClass}">好感: ${rel.favor}</span>
+                            </div>
+                            <div class="relationship-details" id="relationship-details-${index}">
+                                ${rel.age ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">年龄：</span>
+                                    <span class="relationship-detail-value">${rel.age}岁</span>
+                                </div>` : ''}
+                                ${rel.realm ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">境界：</span>
+                                    <span class="relationship-detail-value">${rel.realm}</span>
+                                </div>` : ''}
+                                ${rel.personality ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">性格：</span>
+                                    <span class="relationship-detail-value">${rel.personality}</span>
+                                </div>` : ''}
+                                ${rel.opinion ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">看法：</span>
+                                    <span class="relationship-detail-value">${rel.opinion}</span>
+                                </div>` : ''}
+                                ${rel.appearance ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">外貌：</span>
+                                    <span class="relationship-detail-value">${rel.appearance}</span>
+                                </div>` : ''}
+                                ${rel.sexualPreference ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">性癖：</span>
+                                    <span class="relationship-detail-value">${rel.sexualPreference}</span>
+                                </div>` : ''}
+                                ${rel.isVirgin !== undefined ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">是否为处：</span>
+                                    <span class="relationship-detail-value">${rel.isVirgin ? '是' : '否'}</span>
+                                </div>` : ''}
+                                ${rel.firstSex ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">首次性爱：</span>
+                                    <span class="relationship-detail-value">${rel.firstSex}</span>
+                                </div>` : ''}
+                                ${rel.lastSex ? `<div class="relationship-detail-row">
+                                    <span class="relationship-detail-label">最近性爱：</span>
+                                    <span class="relationship-detail-value">${rel.lastSex}</span>
+                                </div>` : ''}
+                                ${rel.bodyParts ? `
+                                    <div class="relationship-detail-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 215, 0, 0.2);">
+                                        <span class="relationship-detail-label" style="color: #ff69b4;">🌸 身体详情 🌸</span>
+                                    </div>
+                                    ${rel.bodyParts.vagina ? `
+                                        <div class="relationship-detail-row">
+                                            <span class="relationship-detail-label">小穴：</span>
+                                            <span class="relationship-detail-value">${rel.bodyParts.vagina.description || '未知'} (${rel.bodyParts.vagina.useCount || 0}次)</span>
+                                        </div>` : ''}
+                                    ${rel.bodyParts.breasts ? `
+                                        <div class="relationship-detail-row">
+                                            <span class="relationship-detail-label">胸部：</span>
+                                            <span class="relationship-detail-value">${rel.bodyParts.breasts.description || '未知'} (${rel.bodyParts.breasts.useCount || 0}次)</span>
+                                        </div>` : ''}
+                                    ${rel.bodyParts.mouth ? `
+                                        <div class="relationship-detail-row">
+                                            <span class="relationship-detail-label">嘴巴：</span>
+                                            <span class="relationship-detail-value">${rel.bodyParts.mouth.description || '未知'} (${rel.bodyParts.mouth.useCount || 0}次)</span>
+                                        </div>` : ''}
+                                    ${rel.bodyParts.hands ? `
+                                        <div class="relationship-detail-row">
+                                            <span class="relationship-detail-label">小手：</span>
+                                            <span class="relationship-detail-value">${rel.bodyParts.hands.description || '未知'} (${rel.bodyParts.hands.useCount || 0}次)</span>
+                                        </div>` : ''}
+                                    ${rel.bodyParts.feet ? `
+                                        <div class="relationship-detail-row">
+                                            <span class="relationship-detail-label">玉足：</span>
+                                            <span class="relationship-detail-value">${rel.bodyParts.feet.description || '未知'} (${rel.bodyParts.feet.useCount || 0}次)</span>
+                                        </div>` : ''}
+                                ` : ''}
+                                ${historyHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                relationshipsList.innerHTML = '<div style="text-align: center; color: #999;">暂无关系</div>';
+            }
+
+            // 历史
+            const historyList = document.getElementById('historyList');
+            if (vars.history && vars.history.length > 0) {
+                historyList.innerHTML = vars.history.map((event, index) =>
+                    `<div style="margin-bottom: 5px;">• ${event}</div>`
+                ).join('');
+            } else {
+                historyList.innerHTML = '<div style="text-align: center; color: #999;">暂无历史</div>';
+            }
+        }
+
+
+        // 计算实际属性（基础 + 装备加成）
+        // 计算当前实际属性（包含装备加成）- 已迁移到 game-core-systems.js
+
+        // 绘制六维属性雷达图
+        function drawRadarChart() {
+            const canvas = document.getElementById('radarChart');
+            if (!canvas) return;
+
+            // 设置 Canvas 响应式尺寸
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth;
+            
+            // 动态计算尺寸，设置最小值200px，最大值300px
+            let size = Math.max(Math.min(containerWidth - 20, 300), 200);
+            
+            // 根据尺寸动态调整标签留白空间
+            let labelPadding = 40; // 默认留白
+            let fontSize = 12; // 默认字体大小
+            let valueFontSize = 10; // 数值字体大小
+            
+            if (size < 220) {
+                labelPadding = 30;
+                fontSize = 10;
+                valueFontSize = 9;
+            } else if (size < 260) {
+                labelPadding = 35;
+                fontSize = 11;
+                valueFontSize = 9;
+            }
+            
+            // 设置 Canvas 实际像素尺寸（高分辨率支持）
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = size * dpr;
+            canvas.height = size * dpr;
+            
+            // 设置 CSS 显示尺寸
+            canvas.style.width = size + 'px';
+            canvas.style.height = size + 'px';
+            
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            // 获取实际属性值
+            const actualAttributes = calculateActualAttributes();
+            
+            // 六维属性配置
+            const attributes = [
+                { key: 'physique', label: '根骨', value: actualAttributes.physique || 0 },
+                { key: 'fortune', label: '气运', value: actualAttributes.fortune || 0 },
+                { key: 'comprehension', label: '悟性', value: actualAttributes.comprehension || 0 },
+                { key: 'spirit', label: '神识', value: actualAttributes.spirit || 0 },
+                { key: 'potential', label: '潜力', value: actualAttributes.potential || 0 },
+                { key: 'charisma', label: '魅力', value: actualAttributes.charisma || 0 }
+            ];
+
+            // 计算最大值（用于缩放）
+            const maxValue = Math.max(...attributes.map(a => a.value), 100);
+            const levels = 5; // 5个层级
+            const center = size / 2;
+            const radius = size / 2 - labelPadding; // 动态调整标签空间
+
+            // 清空画布
+            ctx.clearRect(0, 0, size, size);
+
+            // 绘制背景网格
+            ctx.strokeStyle = 'rgba(139, 69, 19, 0.2)';
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.05)';
+            
+            for (let i = levels; i > 0; i--) {
+                ctx.beginPath();
+                const r = (radius / levels) * i;
+                
+                for (let j = 0; j < 6; j++) {
+                    const angle = (Math.PI * 2 / 6) * j - Math.PI / 2;
+                    const x = center + r * Math.cos(angle);
+                    const y = center + r * Math.sin(angle);
+                    
+                    if (j === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            // 绘制分隔线
+            ctx.strokeStyle = 'rgba(139, 69, 19, 0.3)';
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI * 2 / 6) * i - Math.PI / 2;
+                const x = center + radius * Math.cos(angle);
+                const y = center + radius * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.moveTo(center, center);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+
+            // 绘制属性数据区域
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.3)';
+            ctx.strokeStyle = 'rgba(139, 69, 19, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            attributes.forEach((attr, index) => {
+                const angle = (Math.PI * 2 / 6) * index - Math.PI / 2;
+                const valueRadius = (attr.value / maxValue) * radius;
+                const x = center + valueRadius * Math.cos(angle);
+                const y = center + valueRadius * Math.sin(angle);
+                
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // 绘制数据点
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.9)';
+            attributes.forEach((attr, index) => {
+                const angle = (Math.PI * 2 / 6) * index - Math.PI / 2;
+                const valueRadius = (attr.value / maxValue) * radius;
+                const x = center + valueRadius * Math.cos(angle);
+                const y = center + valueRadius * Math.sin(angle);
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 绘制属性标签和数值
+            ctx.fillStyle = '#8b4513';
+            ctx.font = `bold ${fontSize}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            attributes.forEach((attr, index) => {
+                const angle = (Math.PI * 2 / 6) * index - Math.PI / 2;
+                const labelRadius = radius + (labelPadding * 0.75); // 标签距离稍微调整
+                let x = center + labelRadius * Math.cos(angle);
+                let y = center + labelRadius * Math.sin(angle);
+                
+                // 调整文本对齐方式
+                if (Math.abs(angle) < 0.1) {
+                    ctx.textAlign = 'center';
+                } else if (Math.cos(angle) > 0) {
+                    ctx.textAlign = 'left';
+                } else {
+                    ctx.textAlign = 'right';
+                }
+                
+                // 绘制标签
+                ctx.fillText(attr.label, x, y - (fontSize * 0.6));
+                
+                // 绘制数值
+                ctx.font = `${valueFontSize}px Arial`;
+                ctx.fillStyle = '#666';
+                ctx.fillText(attr.value.toString(), x, y + (valueFontSize * 0.5));
+                
+                // 恢复字体
+                ctx.font = `bold ${fontSize}px Arial`;
+                ctx.fillStyle = '#8b4513';
+            });
+        }
+
+        // 更新装备显示
+        function updateEquipmentDisplay() {
+            const equipment = gameState.variables.equipment;
+
+            document.getElementById('equipHead').textContent = equipment.head ? equipment.head.name : '空';
+            document.getElementById('equipClothes').textContent = equipment.clothes ? equipment.clothes.name : '空';
+            document.getElementById('equipFeet').textContent = equipment.feet ? equipment.feet.name : '空';
+            document.getElementById('equipTreasure1').textContent = equipment.treasure1 ? equipment.treasure1.name : '空';
+            document.getElementById('equipTreasure2').textContent = equipment.treasure2 ? equipment.treasure2.name : '空';
+            document.getElementById('equipTreasure3').textContent = equipment.treasure3 ? equipment.treasure3.name : '空';
+        }
+
+        // 装备道具
+        function equipItem(itemName) {
+            const item = gameState.variables.items.find(i => i.name === itemName);
+            if (!item || !item.type || !item.type.startsWith('装备-')) {
+                alert('该物品不能装备');
+                return;
+            }
+
+            let equipSlot = null;
+            switch (item.type) {
+                case '装备-头部':
+                    equipSlot = 'head';
+                    break;
+                case '装备-衣服':
+                    equipSlot = 'clothes';
+                    break;
+                case '装备-脚部':
+                    equipSlot = 'feet';
+                    break;
+                case '装备-法宝':
+                    // 找到第一个空的法宝位
+                    if (!gameState.variables.equipment.treasure1) {
+                        equipSlot = 'treasure1';
+                    } else if (!gameState.variables.equipment.treasure2) {
+                        equipSlot = 'treasure2';
+                    } else if (!gameState.variables.equipment.treasure3) {
+                        equipSlot = 'treasure3';
+                    } else {
+                        alert('法宝位已满，请先卸下一个法宝');
+                        return;
+                    }
+                    break;
+                default:
+                    alert('未知的装备类型');
+                    return;
+            }
+
+            // 卸下原有装备（如果有）
+            if (gameState.variables.equipment[equipSlot]) {
+                const oldItem = gameState.variables.equipment[equipSlot];
+                // 将旧装备放回背包
+                const existingItem = gameState.variables.items.find(i => i.name === oldItem.name);
+                if (existingItem) {
+                    existingItem.count++;
+                } else {
+                    gameState.variables.items.push({
+                        name: oldItem.name,
+                        count: 1,
+                        type: oldItem.type || '装备-未知',
+                        effects: oldItem.effects
+                    });
+                }
+            }
+
+            // 装备新物品
+            gameState.variables.equipment[equipSlot] = {
+                name: item.name,
+                type: item.type,
+                effects: item.effects || {}
+            };
+
+            // 从背包中移除一个
+            item.count--;
+            if (item.count <= 0) {
+                const index = gameState.variables.items.indexOf(item);
+                gameState.variables.items.splice(index, 1);
+            }
+
+            // 🆕 记录装备操作到缓存（只记录最后装备的）
+            gameState.pendingActions.equipment = item.name;
+
+            // 更新UI
+            updateStatusPanel();
+
+            // 保存游戏状态
+            saveGameHistory().catch(err => console.error('保存失败:', err));
+        }
+
+        // 卸下装备
+        function unequipItem(slot) {
+            const equipment = gameState.variables.equipment[slot];
+            if (!equipment) {
+                return; // 没有装备，不做任何操作
+            }
+
+            // 将装备放回背包
+            const existingItem = gameState.variables.items.find(i => i.name === equipment.name);
+            if (existingItem) {
+                existingItem.count++;
+            } else {
+                gameState.variables.items.push({
+                    name: equipment.name,
+                    count: 1,
+                    type: equipment.type || '装备-未知',
+                    effects: equipment.effects
+                });
+            }
+
+            // 清空装备栏
+            gameState.variables.equipment[slot] = null;
+
+            // 更新UI
+            updateStatusPanel();
+
+            // 保存游戏状态
+            saveGameHistory().catch(err => console.error('保存失败:', err));
+        }
+
+        // 服用丹药
+        function usePill(itemIndex) {
+            const item = gameState.variables.items[itemIndex];
+            if (!item || !item.type || !(item.type.includes('丹药') || item.type.includes('丹'))) {
+                alert('该物品不是丹药');
+                return;
+            }
+
+            if (item.count <= 0) {
+                alert('丹药数量不足');
+                return;
+            }
+
+            // 应用丹药效果
+            if (item.effects) {
+                let effectMessages = [];
+
+                Object.entries(item.effects).forEach(([attr, value]) => {
+                    if (attr === 'cultivationProgress') {
+                        // 增加修炼进度
+                        gameState.variables.cultivationProgress = (gameState.variables.cultivationProgress || 0) + value;
+                        effectMessages.push(`修炼进度+${value}`);
+
+                        // 检查是否达到突破条件
+                        if (gameState.variables.cultivationProgress >= gameState.variables.cultivationProgressMax) {
+                            effectMessages.push('已达到突破条件！请在剧情中选择突破选项');
+                        }
+                    } else if (attr === 'hp') {
+                        // 恢复体力
+                        gameState.variables.hp = Math.min(
+                            (gameState.variables.hp || 0) + value,
+                            gameState.variables.hpMax || 100
+                        );
+                        effectMessages.push(`体力+${value}`);
+                    } else if (attr === 'mp') {
+                        // 恢复法力
+                        gameState.variables.mp = Math.min(
+                            (gameState.variables.mp || 0) + value,
+                            gameState.variables.mpMax || 100
+                        );
+                        effectMessages.push(`法力+${value}`);
+                    } else if (attr === 'hpMax') {
+                        // 增加体力上限
+                        gameState.variables.hpMax = (gameState.variables.hpMax || 100) + value;
+                        effectMessages.push(`体力上限+${value}`);
+                    } else if (attr === 'mpMax') {
+                        // 增加法力上限
+                        gameState.variables.mpMax = (gameState.variables.mpMax || 100) + value;
+                        effectMessages.push(`法力上限+${value}`);
+                    } else if (gameState.variables.attributes && attr in gameState.variables.attributes) {
+                        // 增加属性
+                        gameState.variables.attributes[attr] = (gameState.variables.attributes[attr] || 0) + value;
+                        effectMessages.push(`${getAttributeName(attr)}+${value}`);
+                    }
+                });
+
+                // 减少丹药数量
+                item.count--;
+                if (item.count <= 0) {
+                    gameState.variables.items.splice(itemIndex, 1);
+                }
+
+                // 🆕 记录服用丹药到缓存（累加数量）
+                if (!gameState.pendingActions.pills[item.name]) {
+                    gameState.pendingActions.pills[item.name] = 0;
+                }
+                gameState.pendingActions.pills[item.name]++;
+
+                // 更新UI
+                updateStatusPanel();
+
+                // 保存游戏状态
+                saveGameHistory().catch(err => console.error('保存失败:', err));
+
+                // 显示效果提示
+                alert(`服用${item.name}成功！\n${effectMessages.join('\n')}`);
+            } else {
+                alert('该丹药没有效果');
+            }
+        }
+
+        // 删除人际关系
+        function deleteRelationship(relIndex) {
+            const relationship = gameState.variables.relationships[relIndex];
+            if (!relationship) {
+                alert('该人际关系不存在');
+                return;
+            }
+
+            // 确认删除
+            if (!confirm(`确定要删除与"${relationship.name}"的关系吗？\n\n关系：${relationship.relation}\n好感度：${relationship.favor}`)) {
+                return;
+            }
+
+            // 从数组中删除
+            gameState.variables.relationships.splice(relIndex, 1);
+
+            // 更新UI
+            updateStatusPanel();
+
+            // 保存游戏状态
+            saveGameHistory().catch(err => console.error('保存失败:', err));
+
+            // 显示提示
+            alert(`已删除与"${relationship.name}"的关系！`);
+        }
+
+        // ==================== 百艺模块相关函数 ====================
+
+        // 百艺选择的材料状态
+        const baiyiState = {
+            selectedMaterials: {} // { materialName: count }
+        };
+
+        // 更新百艺材料列表
+        function updateBaiyiMaterialsList() {
+            const materialsList = document.getElementById('materialsList');
+            const items = gameState.variables.items || [];
+
+            // 显示所有类型的道具（不仅仅是材料）
+            const allItems = items;
+
+            if (allItems.length === 0) {
+                materialsList.innerHTML = '<div style="text-align: center; color: #999;">暂无道具</div>';
+                return;
+            }
+
+            // 按类型分组道具
+            const itemsByType = {};
+            allItems.forEach(item => {
+                const type = item.type || '杂物';
+                if (!itemsByType[type]) {
+                    itemsByType[type] = [];
+                }
+                itemsByType[type].push(item);
+            });
+
+            // 构建HTML显示
+            let html = '';
+            Object.keys(itemsByType).sort().forEach(type => {
+                html += `<div class="material-category" style="margin-bottom: 15px;">
+                    <h4 style="color: #667eea; margin-bottom: 8px; font-size: 14px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px;">📦 ${type}</h4>`;
+                
+                itemsByType[type].forEach(item => {
+                    const selectedCount = baiyiState.selectedMaterials[item.name] || 0;
+                    const availableCount = item.count - selectedCount;
+
+                    html += `
+                        <div class="material-item" style="margin-left: 10px;">
+                            <div class="material-info">
+                                <div class="material-name">${item.name}</div>
+                                <div class="material-count">拥有: ${item.count} | 可用: ${availableCount}</div>
+                            </div>
+                            <div class="material-controls">
+                                <button class="material-btn" onclick="decreaseMaterial('${item.name}')" ${selectedCount === 0 ? 'disabled' : ''}>−</button>
+                                <div class="material-selected-count">${selectedCount}</div>
+                                <button class="material-btn" onclick="increaseMaterial('${item.name}')" ${availableCount === 0 ? 'disabled' : ''}>+</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            });
+
+            materialsList.innerHTML = html;
+
+            // 更新已选材料列表
+            updateSelectedMaterialsList();
+        }
+
+        // 增加材料选择数量
+        function increaseMaterial(materialName) {
+            const material = gameState.variables.items.find(item => item.name === materialName);
+            if (!material) return;
+
+            const selectedCount = baiyiState.selectedMaterials[materialName] || 0;
+            if (selectedCount < material.count) {
+                baiyiState.selectedMaterials[materialName] = selectedCount + 1;
+                updateBaiyiMaterialsList();
+            }
+        }
+
+        // 减少材料选择数量
+        function decreaseMaterial(materialName) {
+            const selectedCount = baiyiState.selectedMaterials[materialName] || 0;
+            if (selectedCount > 0) {
+                baiyiState.selectedMaterials[materialName] = selectedCount - 1;
+                if (baiyiState.selectedMaterials[materialName] === 0) {
+                    delete baiyiState.selectedMaterials[materialName];
+                }
+                updateBaiyiMaterialsList();
+            }
+        }
+
+        // 更新已选材料列表
+        function updateSelectedMaterialsList() {
+            const selectedMaterialsList = document.getElementById('selectedMaterialsList');
+            const selectedNames = Object.keys(baiyiState.selectedMaterials);
+
+            if (selectedNames.length === 0) {
+                selectedMaterialsList.innerHTML = '<div style="text-align: center; color: #999;">未选择任何材料</div>';
+                return;
+            }
+
+            selectedMaterialsList.innerHTML = selectedNames.map(name => {
+                const count = baiyiState.selectedMaterials[name];
+                return `
+                    <div class="selected-material-item">
+                        <span class="selected-material-name">${name}</span>
+                        <span class="selected-material-count">× ${count}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 清空选择的材料
+        function clearSelectedMaterials() {
+            baiyiState.selectedMaterials = {};
+            updateBaiyiMaterialsList();
+        }
+
+        // 执行炼制操作（炼丹或炼器）
+        async function performCrafting(craftingType) {
+            const selectedNames = Object.keys(baiyiState.selectedMaterials);
+
+            if (selectedNames.length === 0) {
+                alert('请先选择材料！');
+                return;
+            }
+
+            // 构建材料描述
+            const materialsDesc = selectedNames.map(name => {
+                const count = baiyiState.selectedMaterials[name];
+                return `${count}个${name}`;
+            }).join('和');
+
+            // 构建炼制消息
+            const craftingMessage = `开始${craftingType}，使用材料：${materialsDesc}`;
+
+            // 扣除材料数量
+            selectedNames.forEach(name => {
+                const count = baiyiState.selectedMaterials[name];
+                const material = gameState.variables.items.find(item => item.name === name);
+                if (material) {
+                    material.count -= count;
+                    if (material.count <= 0) {
+                        const index = gameState.variables.items.indexOf(material);
+                        gameState.variables.items.splice(index, 1);
+                    }
+                }
+            });
+
+            // 清空选择的材料
+            baiyiState.selectedMaterials = {};
+
+            // 更新UI
+            updateStatusPanel();
+
+            // 保存游戏状态
+            await saveGameHistory().catch(err => console.error('保存失败:', err));
+
+            // 发送炼制消息给AI
+            if (!gameState.isProcessing) {
+                // 显示用户输入
+                displayUserMessage(craftingMessage);
+
+                // 添加到历史记录
+                gameState.conversationHistory.push({
+                    role: 'user',
+                    content: craftingMessage
+                });
+
+                // 保存当前变量快照（用户消息）
+                gameState.variableSnapshots.push(JSON.parse(JSON.stringify(gameState.variables)));
+
+                gameState.isProcessing = true;
+
+                try {
+                    // 构建增强提示
+                    const enhancedInput = buildEnhancedPrompt(craftingMessage);
+
+                    // 调用AI
+                    const response = await callAI(enhancedInput, false, craftingMessage);
+
+                    // 处理AI响应
+                    handleAIResponse(response);
+
+                    // 触发动态世界生成（异步，不阻塞主流程）
+                    generateDynamicWorld().catch(err => console.error('[动态世界] 生成异常:', err));
+
+                } catch (error) {
+                    console.error('[炼制] AI调用失败:', error);
+                    displayErrorMessage('炼制失败，请重试');
+                    gameState.isProcessing = false;
+                }
+            }
+        }
+
+        // 获取属性中文名
+        function getAttributeName(attr) {
+            const names = {
+                physique: '根骨',
+                fortune: '气运',
+                comprehension: '悟性',
+                spirit: '神识',
+                potential: '潜力',
+                charisma: '魅力',
+                karmaFortune: '机缘值',
+                karmaPunishment: '天谴值'
+            };
+            return names[attr] || attr;
+        }
+
+        // 解析选项中的属性要求
+        // 格式：选项文本（属性>数值）或 选项文本（属性名>数值）
+        // 以下函数已迁移到 game-core-systems.js:
+        // - parseAttributeRequirement
+        // - checkAttributeRequirement
+        // - showAttributeChanges
+        // - calculateActualAttributesFor
+        // - showChange
+        // - calculateActualAttributes
+
+        // 检查属性是否满足要求 - 已迁移到 game-core-systems.js
+
+        // 显示属性变化 - 已迁移到 game-core-systems.js
+
+        // 计算指定状态的实际属性 - 已迁移到 game-core-systems.js
+
+        // 显示单个属性变化 - 已迁移到 game-core-systems.js
+
+        // ==================== 消息管理系统 ====================
+        // toggleDeleteMode, confirmDelete, cancelDelete 已迁移到 game-core-systems.js
+        
+        // 处理消息勾选（自动选中之后的所有消息）- 保留在game.html中
+        function handleMessageCheck(messageDiv) {
+            const checkbox = messageDiv.querySelector('.message-checkbox');
+            const allMessages = Array.from(document.querySelectorAll('.message'));
+            const currentIndex = allMessages.indexOf(messageDiv);
+
+            if (checkbox.checked) {
+                // 勾选当前消息，自动勾选之后的所有消息
+                for (let i = currentIndex; i < allMessages.length; i++) {
+                    const msg = allMessages[i];
+                    const cb = msg.querySelector('.message-checkbox');
+                    if (cb) {
+                        cb.checked = true;
+                        msg.classList.add('selected-for-delete');
+                    }
+                }
+            } else {
+                // 取消勾选当前消息，自动取消之前的所有消息
+                for (let i = 0; i <= currentIndex; i++) {
+                    const msg = allMessages[i];
+                    const cb = msg.querySelector('.message-checkbox');
+                    if (cb) {
+                        cb.checked = false;
+                        msg.classList.remove('selected-for-delete');
+                    }
+                }
+            }
+        }
+
+        // 🎯 统一构建增强提示的函数
+        function buildEnhancedPrompt(userMessage, options = {}) {
+            // 获取配置
+            const saved = localStorage.getItem('gameConfig');
+            const config = saved ? JSON.parse(saved) : {};
+
+            // 🆕 明确标识这是用户的要求
+            let enhancedPrompt = `【后续情节】${userMessage}`;
+
+            // 1. 根据机缘值和天谴值添加提示
+            if (gameState.variables.karmaFortune >= 80) {
+                enhancedPrompt += '\n\n';
+            } else if (gameState.variables.karmaPunishment >= 80) {
+                enhancedPrompt += '\n\n';
+            }
+
+            // 2. 获取最小字数要求
+            const minWordCount = config.minWordCount || 0;
+
+            // 3. 如果是选项模式，添加属性判定结果
+            if (options.attributeCheck) {
+                const { requirement, checkResult } = options.attributeCheck;
+                if (requirement.hasRequirement) {
+                    if (checkResult.met) {
+                        enhancedPrompt += `\n\n[判定通过：${checkResult.attributeName}${checkResult.currentValue}${requirement.operator}${checkResult.requiredValue}→成功剧情]`;
+                    } else {
+                        enhancedPrompt += `\n\n[判定失败：${checkResult.attributeName}${checkResult.currentValue}不足${checkResult.requiredValue}→失败剧情]`;
+                    }
+                }
+            }
+
+            // 4. 强制要求更新变量和生成选项
+            enhancedPrompt += '\n\n[必须返回4选项(含属性判定)，顺序：1.对话 2.离开 3.行动 4.R18]';
+
+            // 5. 添加最小字数要求
+            if (minWordCount > 0) {
+                enhancedPrompt += `\n\n[story≥${minWordCount}字]`;
+            }
+
+            // 6. 性爱场景描写要求
+            enhancedPrompt += '\n\n[R18场景详写过程，语言动作表情多方面描写，不准主动结束性爱场景，需要玩家主动结束]';
+
+            // 8. 人际关系提醒（v3.1格式）
+            enhancedPrompt += '\n\n[NPC互动在variableUpdate中更新：relationships.NPC名字={favor:数值,opinion:"评价",history:["事件"]}。R18必更新：isVirgin/firstSex/lastSex/sexualPreference/appearance]';
+
+            // 9. 变量更新说明（v3.1格式）
+            enhancedPrompt += '\n\n[使用variableUpdate字段，格式：{"属性路径":值}。例：{"hp":100,"items.灵石":50,"relationships.柳如烟.favor":80}]';
+
+            // 10. 历史记录要求
+            enhancedPrompt += '\n\n[history返回1条≥40字。]';
+
+            // 12. 炼丹炼器等级提示
+            const alchemyLevel = gameState.variables.alchemyLevel || "未入门";
+            const craftingLevel = gameState.variables.craftingLevel || "未入门";
+
+            if (userMessage.includes('炼丹') || userMessage.includes('炼制') || userMessage.includes('丹药')) {
+                if (alchemyLevel !== "未入门") {
+                    enhancedPrompt += `\n\n[当前炼丹等级：${alchemyLevel}，根据等级判断成功率和丹药品质]`;
+                } else {
+                    enhancedPrompt += '\n\n[未学过炼丹，成功率极低或失败]';
+                }
+            }
+
+            if (userMessage.includes('炼器') || userMessage.includes('炼制') || userMessage.includes('法宝')) {
+                if (craftingLevel !== "未入门") {
+                    enhancedPrompt += `\n\n[当前炼器等级：${craftingLevel}，根据等级判断成功率和法宝品质]`;
+                } else {
+                    enhancedPrompt += '\n\n[未学过炼器，成功率极低或失败]';
+                }
+            }
+
+            // 13. 添加本地操作摘要（如果有的话）
+            const hasLocalOps = gameState.localOps && (
+                (gameState.localOps.items && gameState.localOps.items.length > 0) ||
+                (gameState.localOps.attrs && gameState.localOps.attrs.length > 0) ||
+                (gameState.localOps.equip && gameState.localOps.equip.length > 0)
+            );
+            
+            if (hasLocalOps) {
+                const localOpsSummary = {
+                    items: gameState.localOps.items || [],
+                    attrs: gameState.localOps.attrs || [],
+                    equip: gameState.localOps.equip || []
+                };
+                enhancedPrompt += '\n\n[本地操作记录]' + JSON.stringify(localOpsSummary);
+            }
+
+            return enhancedPrompt;
+        }
+
+        // 发送用户自定义输入
+        async function sendUserInput() {
+            const inputBox = document.getElementById('userInput');
+            let userText = inputBox.value.trim();
+
+            if (!userText) {
+                alert('请输入内容！');
+                return;
+            }
+
+            if (gameState.isProcessing) return;
+
+            if (!gameState.isGameStarted) {
+                alert('请先创建角色并开始游戏！');
+                return;
+            }
+
+            // 🆕 自动附加操作缓存
+            const actionsSummary = getPendingActionsSummary();
+            if (actionsSummary) {
+                userText = actionsSummary + userText;
+            }
+
+            // 🆕 在控制台显示完整的用户输入
+            console.log('📤 [用户输入]', userText);
+
+            // 清空输入框
+            inputBox.value = '';
+
+            gameState.isProcessing = true;
+
+            // 显示用户输入
+            displayUserMessage(userText);
+
+            // 添加到历史记录
+            gameState.conversationHistory.push({
+                role: 'user',
+                content: userText
+            });
+
+            // 保存当前变量快照（用户消息）
+            gameState.variableSnapshots.push(JSON.parse(JSON.stringify(gameState.variables)));
+
+            // 🆕 清空操作缓存
+            clearPendingActions();
+
+            // 保存游戏历史
+            saveGameHistory().catch(err => console.error('保存历史失败:', err));
+
+            // 显示加载提示
+            const historyDiv = document.getElementById('gameHistory');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message ai-message';
+            loadingDiv.innerHTML = '<div class="message-content"><span class="loading"></span> AI思考中...</div>';
+            loadingDiv.id = 'loading-message';
+            historyDiv.appendChild(loadingDiv);
+            historyDiv.scrollTop = historyDiv.scrollHeight;
+
+            try {
+                // 🎯 使用统一函数构建增强提示
+                const enhancedInput = buildEnhancedPrompt(userText);
+
+                // 🆕 在控制台显示完整的增强提示
+                console.log('🤖 [发送给AI的完整Prompt]', enhancedInput);
+
+                // 🔧 传入原始用户输入（用于向量检索）
+                const response = await callAI(enhancedInput, false, userText);
+
+                // 移除加载提示
+                const loading = document.getElementById('loading-message');
+                if (loading) loading.remove();
+
+                handleAIResponse(response);
+
+                // 触发动态世界生成（异步，不阻塞主流程）
+                generateDynamicWorld().catch(err => console.error('[动态世界] 生成异常:', err));
+
+            } catch (error) {
+                // 移除加载提示
+                const loading = document.getElementById('loading-message');
+                if (loading) loading.remove();
+
+                // ❌ 不要移除用户消息！显示错误和重试按钮
+                displayErrorMessageWithRetry('AI响应失败：' + error.message, async () => {
+                    // 移除错误消息
+                    const errorDiv = document.getElementById('error-message-with-retry');
+                    if (errorDiv) errorDiv.remove();
+                    
+                    // 重新生成最后的响应
+                    await regenerateLastResponse();
+                });
+            }
+
+            gameState.isProcessing = false;
+        }
+
+        // 选择选项
+        async function selectOption(option) {
+            // 确保option是字符串
+            const optionText = typeof option === 'string' ? option : String(option);
+
+            if (gameState.isProcessing) return;
+
+            
+            // 🔧 处理JSON解析失败后的特殊选项
+            if (optionText === "重新生成回复") {
+                await regenerateLastResponse();
+                return;
+            }
+            
+            if (optionText === "跳过此回合") {
+                // 跳过此回合，直接进入下一回合
+                gameState.isProcessing = false;
+                
+                // 移除最后的错误消息
+                const errorMessage = document.getElementById('error-message-with-retry');
+                if (errorMessage) errorMessage.remove();
+                
+                // 显示跳过消息
+                displayAIMessage("你选择跳过此回合，故事继续...", ["继续探索"], {
+                    situation: '玩家选择跳过解析失败的回合',
+                    playerChoice: '跳过此回合',
+                    logicChain: ['跳过当前回合', '继续故事进程'],
+                    outcome: '故事继续，但可能缺少一些细节'
+                });
+                return;
+            }
+            
+            if (optionText === "查看原始响应") {
+                // 在新窗口中显示原始响应
+                const historyDiv = document.getElementById('gameHistory');
+                const lastAIMessage = historyDiv.querySelector('.ai-message:last-of-type');
+                
+                if (lastAIMessage && lastAIMessage.originalResponse) {
+                    const newWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+                    newWindow.document.write(`
+                        <html>
+                        <head><title>原始AI响应</title></head>
+                        <body style="font-family: monospace; padding: 20px; white-space: pre-wrap;">
+                            <h2>原始AI响应内容</h2>
+                            <hr>
+                            <pre>${lastAIMessage.originalResponse}</pre>
+                            <hr>
+                            <button onclick="window.close()">关闭窗口</button>
+                        </body>
+                        </html>
+                    `);
+                } else {
+                    alert('没有找到原始响应内容');
+                }
+                return;
+            }
+
+            gameState.isProcessing = true;
+
+            // 🆕 自动附加操作缓存
+            const actionsSummary = getPendingActionsSummary();
+            let finalOption = optionText;
+            if (actionsSummary) {
+                finalOption = actionsSummary + optionText;
+            }
+
+            // 🆕 在控制台显示完整的用户输入
+            console.log('📤 [用户选择]', finalOption);
+
+            // 显示用户选择（显示附加了操作的完整文本）
+            displayUserMessage(finalOption);
+
+            // 添加到历史记录（只保存选项内容）
+            gameState.conversationHistory.push({
+                role: 'user',
+                content: finalOption
+            });
+
+            // 保存当前变量快照（用户选择）
+            gameState.variableSnapshots.push(JSON.parse(JSON.stringify(gameState.variables)));
+
+            // 🆕 清空操作缓存
+            clearPendingActions();
+
+            // 保存游戏历史到 IndexedDB
+            saveGameHistory().catch(err => console.error('保存历史失败:', err));
+
+            // 显示加载提示
+            const historyDiv = document.getElementById('gameHistory');
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message ai-message';
+            loadingDiv.innerHTML = '<div class="message-content"><span class="loading"></span> AI思考中...</div>';
+            loadingDiv.id = 'loading-message';
+            historyDiv.appendChild(loadingDiv);
+            historyDiv.scrollTop = historyDiv.scrollHeight;
+
+            try {
+                // 解析属性要求并进行判定（使用原始option，不包含操作摘要）
+                const requirement = parseAttributeRequirement(optionText);
+                const checkResult = checkAttributeRequirement(requirement);
+
+                // 🎯 使用统一函数构建增强提示（传入属性判定结果）
+                const enhancedOption = buildEnhancedPrompt(finalOption, {
+                    attributeCheck: { requirement, checkResult }
+                });
+
+                // 🆕 在控制台显示完整的增强提示
+                console.log('📤 [原始选项]', optionText);
+                console.log('📤 [完整选项(含操作)]', finalOption);
+                console.log('🤖 [发送给AI的完整Prompt]', enhancedOption);
+
+                // 🔧 传入原始选项文本（用于向量检索）
+                const response = await callAI(enhancedOption, false, finalOption);
+
+                // 移除加载提示
+                const loading = document.getElementById('loading-message');
+                if (loading) loading.remove();
+
+                handleAIResponse(response);
+
+                // 触发动态世界生成（异步，不阻塞主流程）
+                generateDynamicWorld().catch(err => console.error('[动态世界] 生成异常:', err));
+
+            } catch (error) {
+                // 移除加载提示
+                const loading = document.getElementById('loading-message');
+                if (loading) loading.remove();
+
+                // ❌ 不要移除用户消息！显示错误和重试按钮
+                displayErrorMessageWithRetry('AI响应失败：' + error.message, async () => {
+                    // 移除错误消息
+                    const errorDiv = document.getElementById('error-message-with-retry');
+                    if (errorDiv) errorDiv.remove();
+                    
+                    // 重新生成最后的响应
+                    await regenerateLastResponse();
+                });
+            }
+
+            gameState.isProcessing = false;
+        }
+
+        // Make selectOption globally accessible
+        window.selectOption = selectOption;
+
+
+        // ==================== 格式化游戏 ====================
+        // formatGame 在 game-core-systems.js 有简化版本
+        // 但这里保留完整版本，包含游戏状态重置逻辑
+        async function formatGame() {
+            if (!confirm('⚠️ 警告：格式化将清除所有存档和进度，包括DLC知识包，此操作不可恢复！\n\n✅ 将保留：\n- API配置\n- 游戏设置\n- 动态世界设置\n\n确定要格式化吗？')) {
+                return;
+            }
+
+            console.log('[格式化] 开始格式化，将保留 API 配置、游戏设置和动态世界设置');
+            
+            // 重置状态
+            gameState.variables = {
+                name: "",
+                gender: "",
+                realm: "",
+                identity: "",
+                karmaFortune: 0,
+                karmaPunishment: 0,
+                cultivationProgress: 0,
+                cultivationProgressMax: 100,
+                hp: 100,
+                hpMax: 100,
+                mp: 100,
+                mpMax: 100,
+                talents: [],
+                attributes: {
+                    physique: 0,
+                    fortune: 0,
+                    comprehension: 0,
+                    spirit: 0,
+                    potential: 0,
+                    charisma: 0
+                },
+                equipment: {
+                    head: null,
+                    clothes: null,
+                    feet: null,
+                    treasure1: null,
+                    treasure2: null,
+                    treasure3: null
+                },
+                items: [],
+                techniques: [],
+                spells: [],
+                relationships: [],
+                location: "",
+                history: []
+            };
+            gameState.previousVariables = null;
+            gameState.conversationHistory = [];
+            gameState.variableSnapshots = [];
+            gameState.isGameStarted = false;
+            gameState.isProcessing = false;
+            gameState.characterInfo = null;
+
+            // 清除 IndexedDB 中的所有数据（包括所有存档）
+            try {
+                await clearGameHistory();
+            } catch (error) {
+                console.error('清除数据失败:', error);
+            }
+            
+            // 【新增】清空向量库
+            if (window.contextVectorManager) {
+                window.contextVectorManager.clear();
+                window.contextVectorManager.saveToIndexedDB().catch(err => {
+                    console.error('清空向量库失败:', err);
+                });
+                
+                // 清空静态知识库
+                window.contextVectorManager.clearStaticKB();
+                window.contextVectorManager.saveStaticKBToIndexedDB().catch(err => {
+                    console.error('清空静态知识库失败:', err);
+                });
+            }
+
+            // 清空DLC数据
+            if (window.dlcManager) {
+                try {
+                    await window.dlcManager.clearAllDLCs();
+                    console.log('[格式化] 已清空所有DLC数据');
+                } catch (error) {
+                    console.error('[格式化] 清空DLC数据失败:', error);
+                }
+            }
+
+            // 重置动态世界数据（保留 enabled 和 messageInterval 设置）
+            gameState.dynamicWorld = {
+                enabled: gameState.dynamicWorld?.enabled || false,
+                history: [],
+                floor: 0,
+                isProcessing: false,
+                messageInterval: gameState.dynamicWorld?.messageInterval || 1, // 保留间隔设置
+                messageCounter: 0 // 重置计数器
+            };
+            console.log('[格式化] 已重置动态世界数据（已保留 enabled 和 messageInterval 设置）');
+            
+            // 更新动态世界Tab显示
+            displayDynamicWorldHistory();
+
+            // 更新状态面板
+            updateStatusPanel();
+
+            // 显示主菜单
+            showMainMenu();
+        }
+
+        // 切换人际关系详情展开/折叠
+        function toggleRelationshipDetails(index) {
+            const detailsDiv = document.getElementById(`relationship-details-${index}`);
+            const cardDiv = detailsDiv.parentElement;
+            
+            if (detailsDiv.classList.contains('show')) {
+                // 折叠
+                detailsDiv.classList.remove('show');
+                cardDiv.classList.remove('expanded');
+            } else {
+                // 展开
+                detailsDiv.classList.add('show');
+                cardDiv.classList.add('expanded');
+            }
+        }
+
+       
+    </script>
+
+
+        
+</body>
+
+</html>
